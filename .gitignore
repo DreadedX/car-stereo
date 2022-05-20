@@ -1,4 +1,4 @@
 tools
-receiver/build
-receiver/.cache
+build
+.cache
 sdkconfig.old
