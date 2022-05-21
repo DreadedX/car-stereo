@@ -25,9 +25,5 @@ extern "C" void app_main() {
 	a2dp::init();
 
 	a2dp::connect_to_last();
-
-	vTaskDelay(10000 / portTICK_PERIOD_MS);
-	ESP_LOGI(APP_TAG, "Changing volume");
-	avrcp::set_volume(127/2);
 }
 

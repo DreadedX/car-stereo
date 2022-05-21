@@ -6,7 +6,6 @@
 
 #define AVRCP_TAG "APP_AVRCP"
 
-static uint8_t volume = 127;
 static void rc_tg_callback(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t* param) {
 	ESP_LOGD(AVRCP_TAG, "%s evt %d", __func__, event);
 
@@ -27,7 +26,7 @@ static void rc_tg_callback(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t*
 				// In the future however it might be nice to sync the value on the phone, the esp and the car
 				// This will require some sort of CAN bus access
 				esp_avrc_rn_param_t rn_param;
-				rn_param.volume = volume;
+				rn_param.volume = 127;
 				esp_avrc_tg_send_rn_rsp(ESP_AVRC_RN_VOLUME_CHANGE, ESP_AVRC_RN_RSP_INTERIM, &rn_param);
 			} else {
 				ESP_LOGW(AVRCP_TAG, "AVRC Volume Changes NOT Supported");
@@ -54,15 +53,4 @@ void avrcp::init() {
 	} else {
 		ESP_LOGE(AVRCP_TAG, "esp_avrc_tg_init failed");
 	}
-}
-
-uint8_t avrcp::get_volume() {
-	return volume;
-}
-
-void avrcp::set_volume(uint8_t v) {
-	volume = v;
-	esp_avrc_rn_param_t rn_param;
-	rn_param.volume = volume;
-	esp_avrc_tg_send_rn_rsp(ESP_AVRC_RN_VOLUME_CHANGE, ESP_AVRC_RN_RSP_CHANGED, &rn_param);
 }
