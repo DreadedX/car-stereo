@@ -1,0 +1,4 @@
+(fp_lib_table
+  (lib (name "RCJ-013")(type "KiCad")(uri "${KIPRJMOD}/library/RCJ-013")(options "")(descr ""))
+  (lib (name "31-M-12")(type "KiCad")(uri "${KIPRJMOD}/library/31-M-12")(options "")(descr ""))
+)
