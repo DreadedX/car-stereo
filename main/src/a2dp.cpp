@@ -161,6 +161,8 @@ void a2dp::connect_to_last() {
 		if (esp_a2d_sink_connect(last_connection) == ESP_FAIL) {
 			ESP_LOGE(A2DP_TAG, "Failed connecting to device!");
 		}
+	} else {
+		bluetooth::set_scan_mode(true);
 	}
 }
 
