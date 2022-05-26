@@ -1,4 +1,4 @@
 JLCPCB/
-receiver-backups
+*-backups
 fp-info-cache
 *.kicad_prl
