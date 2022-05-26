@@ -427,6 +427,18 @@
     [
       "13ffd951-6c9f-425e-a49a-7726b11de428",
       ""
+    ],
+    [
+      "308b224b-bd8f-4f6b-8e7b-62c517bf8563",
+      "Buck Converter"
+    ],
+    [
+      "a7a1f9fe-735e-48a0-bce1-9c8fecbb06a8",
+      "Input"
+    ],
+    [
+      "2c3d2205-9073-431d-b29b-5d126fc067cd",
+      "Audio"
     ]
   ],
   "text_variables": {}

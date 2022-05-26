@@ -1,4 +1,5 @@
 (sym_lib_table
   (lib (name "RCJ-013")(type "Legacy")(uri "${KIPRJMOD}/library/RCJ-013/RCJ-013.lib")(options "")(descr ""))
   (lib (name "TYPE-C-31-M-12")(type "Legacy")(uri "${KIPRJMOD}/library/31-M-12/TYPE-C-31-M-12.lib")(options "")(descr ""))
+  (lib (name "custom")(type "KiCad")(uri "${KIPRJMOD}/library/custom/custom.kicad_sym")(options "")(descr ""))
 )
