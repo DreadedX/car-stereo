@@ -393,36 +393,36 @@ void can::init() {
 		.spics_io_num=PIN_NUM_CS,
 		.queue_size=7,
 	};
-	spi_device_handle_t spi;
-	ret = spi_bus_add_device(VSPI_HOST, &devcfg, &spi);
+	spi_device_handle_t* spi = new spi_device_handle_t;
+	ret = spi_bus_add_device(VSPI_HOST, &devcfg, spi);
 	ESP_ERROR_CHECK(ret);
 
 	ESP_LOGI(CAN_TAG, "Resetting MCP1525");
-	send_cmd(spi, MCP_RESET);
+	send_cmd(*spi, MCP_RESET);
 	// @TODO Check if this is really needed
 	// Copied from other libary, here to give the MCP2515 time to wake up
 	vTaskDelay(5 / portTICK_PERIOD_MS);
 
 	ESP_LOGI(CAN_TAG, "Enter config mode");
-	set_CANCTRL_mode(spi, MODE_CONFIG);
+	set_CANCTRL_mode(*spi, MODE_CONFIG);
 
 	ESP_LOGI(CAN_TAG, "Setting rate");
-	config_rate(spi);
+	config_rate(*spi);
 
 	ESP_LOGI(CAN_TAG, "Init CAN buffers");
-	init_CAN_buffers(spi);
+	init_CAN_buffers(*spi);
 
 	ESP_LOGI(CAN_TAG, "Setting interrupt mode");
-	set_register(spi, MCP_CANINTE, MCP_RX0IF | MCP_RX1IF);
+	set_register(*spi, MCP_CANINTE, MCP_RX0IF | MCP_RX1IF);
 
 	ESP_LOGI(CAN_TAG, "Enable receive buffers");
-	modify_register(spi, MCP_RXB0CTRL, MCP_RXB_RX_MASK | MCP_RXB_BUKT_MASK, MCP_RXB_RX_STDEXT | MCP_RXB_BUKT_MASK);
-	modify_register(spi, MCP_RXB1CTRL, MCP_RXB_RX_MASK, MCP_RXB_RX_STDEXT);
+	modify_register(*spi, MCP_RXB0CTRL, MCP_RXB_RX_MASK | MCP_RXB_BUKT_MASK, MCP_RXB_RX_STDEXT | MCP_RXB_BUKT_MASK);
+	modify_register(*spi, MCP_RXB1CTRL, MCP_RXB_RX_MASK, MCP_RXB_RX_STDEXT);
 
 	ESP_LOGI(CAN_TAG, "Enter normal mode");
-	set_CANCTRL_mode(spi, MODE_NORMAL);
+	set_CANCTRL_mode(*spi, MODE_NORMAL);
 
 	ESP_LOGI(CAN_TAG, "Init done!");
 
-	xTaskCreate(can_task, "CAN Task", 4096, &spi, 0, nullptr);
+	xTaskCreate(can_task, "CAN Task", 4096, spi, 0, nullptr);
 }
