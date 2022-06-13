@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <string.h>
 
+#include "esp_avrc_api.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
@@ -459,31 +460,51 @@ static void read_message(spi_device_handle_t spi) {
 
 	ESP_LOGI(CAN_TAG, "Received: id=%lu, ext=%i, rtr_bit=%i, len=%i", id, ext, rtr_bit, len);
 
-	/* if (ext || rtr_bit) { */
-	/* 	// We do not really care about these messages at all, so just return */
-	/* 	return; */
-	/* } */
-
 	// @TODO Implement the length check in a more elegant manner
 	switch (id) {
 		case BUTTONS_ID:
-			if (len == sizeof(can::Buttons)) {
-				print_buttons(*(can::Buttons*)buf);
-			} else {
-				ESP_LOGE(CAN_TAG, "Size mismatch... (Buttons)");
-			}
+			print_buttons(*(can::Buttons*)buf);
 			break;
 
-		/* case RADIO_ID: */
-		/* 	print_radio(*(can::Radio*)buf); */
-		/* 	break; */
+		case RADIO_ID:
+			print_radio(*(can::Radio*)buf);
+			break;
 
 		default:
 			break;
 	}
 
+	if (id == BUTTONS_ID) {
+		static can::Buttons previous;
+		can::Buttons buttons = *(can::Buttons*)buf;
 
-	// @TODO Print the buf data
+		if (previous.forward != buttons.forward && buttons.forward) {
+			// @TODO Get this from the actual device instead of assuming that on startup it is falce
+			static bool play_status = false;
+			play_status = !play_status;
+
+			ESP_LOGI(CAN_TAG, "Play button has been pressed");
+
+			if (play_status) {
+				ESP_LOGI(CAN_TAG, "Playing");
+				// @TODO Abstract this away so that we are not directly interfacing with AVRC things
+				esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, ESP_AVRC_PT_CMD_PLAY, ESP_AVRC_PT_CMD_STATE_PRESSED);
+				ESP_ERROR_CHECK(ret);
+
+				ret = esp_avrc_ct_send_passthrough_cmd(1, ESP_AVRC_PT_CMD_PLAY, ESP_AVRC_PT_CMD_STATE_RELEASED);
+				ESP_ERROR_CHECK(ret);
+			} else {
+				ESP_LOGI(CAN_TAG, "Pausing");
+				esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, ESP_AVRC_PT_CMD_PAUSE, ESP_AVRC_PT_CMD_STATE_PRESSED);
+				ESP_ERROR_CHECK(ret);
+
+				ret = esp_avrc_ct_send_passthrough_cmd(1, ESP_AVRC_PT_CMD_PAUSE, ESP_AVRC_PT_CMD_STATE_RELEASED);
+				ESP_ERROR_CHECK(ret);
+			}
+		}
+
+		previous = buttons;
+	}
 }
 
 static void id_to_buf(const uint8_t ext, const unsigned long id, uint8_t* buf) {
