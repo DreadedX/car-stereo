@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <stdint.h>
 
+#define BUTTONS_ID 0x21f
+#define RADIO_ID 0x165
+
 namespace can {
 	#pragma pack(1)
 	struct Buttons {

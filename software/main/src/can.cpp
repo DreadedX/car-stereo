@@ -12,6 +12,7 @@
 #include "hal/spi_types.h"
 
 #include "can.h"
+#include "can_data.h"
 
 #define CAN_TAG "APP_CAN"
 
@@ -49,8 +50,12 @@
 #define MCP_RESET       0xC0
 
 // Registers
+#define MCP_RXF0SIDH 0x00
+#define MCP_RXF1SIDH 0x04
 #define MCP_CANSTAT  0x0E
 #define MCP_CANCTRL  0x0F
+#define MCP_RXM0SIDH 0x20
+#define MCP_RXM1SIDH 0x24
 #define MCP_CNF3     0x28
 #define MCP_CNF2     0x29
 #define MCP_CNF1     0x2A
@@ -132,6 +137,37 @@ static void set_register(spi_device_handle_t spi, const uint8_t address, const u
 	ESP_ERROR_CHECK(ret);
 }
 
+static void set_registers(spi_device_handle_t spi, const uint8_t address, const uint8_t* buf, int len) {
+	// Acquire the bus in order to use SPI_TRANS_CS_KEEP_ACTIVE
+	esp_err_t ret = spi_device_acquire_bus(spi, portMAX_DELAY);
+	ESP_ERROR_CHECK(ret);
+
+	// Send the initial command
+	{
+		spi_transaction_t t;
+		memset(&t, 0, sizeof(t));
+		t.length = 8*2;
+		uint8_t cmd[] = { MCP_WRITE, address };
+		t.tx_buffer = cmd;
+		t.flags = SPI_TRANS_CS_KEEP_ACTIVE;
+
+		ret = spi_device_polling_transmit(spi, &t);
+		ESP_ERROR_CHECK(ret);
+	}
+
+	// Send the data
+	spi_transaction_t t;
+	memset(&t, 0, sizeof(t));
+	t.length = 8*len;
+	t.tx_buffer = buf;
+
+	ret = spi_device_polling_transmit(spi, &t);
+	ESP_ERROR_CHECK(ret);
+
+	spi_device_release_bus(spi);
+	ESP_ERROR_CHECK(ret);
+}
+
 static void modify_register(spi_device_handle_t spi, const uint8_t address, const uint8_t mask, const uint8_t data) {
 	spi_transaction_t t;
 	memset(&t, 0, sizeof(t));
@@ -189,9 +225,9 @@ static void set_CANCTRL_mode(spi_device_handle_t spi, uint8_t new_mode) {
 
 static void config_rate(spi_device_handle_t spi) {
 	// This is for 16MHz, 125kBPS
-	set_register(spi, MCP_CNF1, 0x03);
-	set_register(spi, MCP_CNF2, 0xF0);
-	set_register(spi, MCP_CNF3, 0x86);
+	set_register(spi, MCP_CNF1, 0x01);
+	set_register(spi, MCP_CNF2, 0xb1);
+	set_register(spi, MCP_CNF3, 0x05);
 }
 
 static void init_CAN_buffers(spi_device_handle_t spi) {
@@ -263,7 +299,7 @@ static uint8_t read_rx_tx_status(spi_device_handle_t spi) {
 	return ret;
 }
 
-static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, uint8_t* id, uint8_t* ext, uint8_t* rtr_bit, uint8_t* len, uint8_t* buf) {
+static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, unsigned long* id, uint8_t* ext, uint8_t* rtr_bit, uint8_t* len, uint8_t* buf) {
 	// Acquire the bus in order to use SPI_TRANS_CS_KEEP_ACTIVE
 	esp_err_t ret = spi_device_acquire_bus(spi, portMAX_DELAY);
 	ESP_ERROR_CHECK(ret);
@@ -281,42 +317,33 @@ static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, uint
 		ESP_ERROR_CHECK(ret);
 	}
 
-	// Read id
+	// Read id + length
 	{
 		spi_transaction_t t;
 		memset(&t, 0, sizeof(t));
-		t.length = 8*4;
-		t.flags = SPI_TRANS_USE_RXDATA;
+		t.length = 8*5;
+		uint8_t data[5];
+		t.rx_buffer = data;
+		t.flags = SPI_TRANS_CS_KEEP_ACTIVE;
 
 		ret = spi_device_polling_transmit(spi, &t);
 		ESP_ERROR_CHECK(ret);
 
-		*id = (t.rx_data[MCP_SIDH] << 3) + (t.rx_data[MCP_SIDL] >> 5);
+		*id = (data[MCP_SIDH] << 3) + (data[MCP_SIDL] >> 5);
 		*ext = 0;
-		if ((t.rx_data[MCP_SIDL] & MCP_TXB_EXIDE_M) == MCP_TXB_EXIDE_M) {
+		if ((data[MCP_SIDL] & MCP_TXB_EXIDE_M) == MCP_TXB_EXIDE_M) {
 			// Extended id
 			// @TODO Do we need this for our application
-			*id = (*id << 2) + (t.rx_data[MCP_SIDL] & 0x03);
-			*id = (*id << 8) + t.rx_data[MCP_EID8];
-			*id = (*id << 8) + t.rx_data[MCP_EID0];
+			*id = (*id << 2) + (data[MCP_SIDL] & 0x03);
+			*id = (*id << 8) + data[MCP_EID8];
+			*id = (*id << 8) + data[MCP_EID0];
 			*ext = 1;
 		}
-	}
 
-	// Read the message size
-	{
-		spi_transaction_t t;
-		memset(&t, 0, sizeof(t));
-		t.length = 8;
-		t.flags = SPI_TRANS_USE_RXDATA;
-
-		ret = spi_device_polling_transmit(spi, &t);
-		ESP_ERROR_CHECK(ret);
-
-		*len = t.rx_data[0] & MCP_DLC_MASK;
+		*len = data[4] & MCP_DLC_MASK;
 
 		// @TODO Do we need this in our application
-		*rtr_bit = (t.rx_data[0] & MCP_RTR_MASK) ? 1 : 0;
+		*rtr_bit = (data[0] & MCP_RTR_MASK) ? 1 : 0;
 	}
 
 	// Read the data
@@ -324,15 +351,10 @@ static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, uint
 		spi_transaction_t t;
 		memset(&t, 0, sizeof(t));
 		t.length = 8*(*len);
-		t.flags = SPI_TRANS_USE_RXDATA;
+		t.rx_buffer = buf;
 
 		ret = spi_device_polling_transmit(spi, &t);
 		ESP_ERROR_CHECK(ret);
-
-		// Copy the data to the output buffer
-		for (int i = 0; i < *len; i++) {
-			buf[i] = t.rx_data[i];
-		}
 	}
 
 	// Make sure we release the bus
@@ -340,10 +362,90 @@ static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, uint
 	ESP_ERROR_CHECK(ret);
 }
 
+static void print_buttons(can::Buttons buttons) {
+	/* ESP_LOGI(CAN_TAG, "BUTTONS"); */
+	if (buttons.forward) {
+		ESP_LOGI(CAN_TAG, "Button: F");
+	}
+	if (buttons.backward) {
+		ESP_LOGI(CAN_TAG, "Button: B");
+	}
+	if (buttons.volume_up) {
+		ESP_LOGI(CAN_TAG, "Button: U");
+	}
+	if (buttons.volume_down) {
+		ESP_LOGI(CAN_TAG, "Button: D");
+	}
+	if (buttons.source) {
+		ESP_LOGI(CAN_TAG, "Button: S");
+	}
+
+	// Only print when scroll changes value
+	static uint8_t scroll = 0;
+	if (buttons.scroll != scroll) {
+		scroll = buttons.scroll;
+		ESP_LOGI(CAN_TAG, "Scroll: %i", buttons.scroll);
+	}
+}
+
+static void print_radio(can::Radio radio) {
+	ESP_LOGI(CAN_TAG, "RADIO");
+	if (radio.enabled) {
+		ESP_LOGI(CAN_TAG, "Enabled: %i", radio.enabled);
+	}
+	if (radio.muted) {
+		ESP_LOGI(CAN_TAG, "Muted: %i", radio.muted);
+	}
+	if (radio.cd_changer_available) {
+		ESP_LOGI(CAN_TAG, "CD Changer: %i", radio.cd_changer_available);
+	}
+	switch (radio.disk_status) {
+		case can::DiskStatus::Init:
+			ESP_LOGI(CAN_TAG, "CD: Init");
+			break;
+		case can::DiskStatus::Unavailable:
+			ESP_LOGI(CAN_TAG, "CD: Unavailable");
+			break;
+		case can::DiskStatus::Available:
+			ESP_LOGI(CAN_TAG, "CD: Available");
+			break;
+		default:
+			ESP_LOGW(CAN_TAG, "CD: Invalid");
+			break;
+	}
+
+	switch (radio.source) {
+		case can::Source::Bluetooth:
+			ESP_LOGI(CAN_TAG, "Source: Bluetooth");
+			break;
+		case can::Source::USB:
+			ESP_LOGI(CAN_TAG, "Source: USB");
+			break;
+		case can::Source::AUX2:
+			ESP_LOGI(CAN_TAG, "Source: AUX2");
+			break;
+		case can::Source::AUX1:
+			ESP_LOGI(CAN_TAG, "Source: AUX1");
+			break;
+		case can::Source::CD_Changer:
+			ESP_LOGI(CAN_TAG, "Source: CD Changer");
+			break;
+		case can::Source::CD:
+			ESP_LOGI(CAN_TAG, "Source: CD");
+			break;
+		case can::Source::Tuner:
+			ESP_LOGI(CAN_TAG, "Source: Tuner");
+			break;
+		default:
+			ESP_LOGW(CAN_TAG, "Source: Invalid");
+			break;
+	}
+}
+
 static void read_message(spi_device_handle_t spi) {
 	uint8_t status = read_rx_tx_status(spi);
 
-	uint8_t id;
+	unsigned long id;
 	uint8_t ext;
 	uint8_t rtr_bit;
 	uint8_t len;
@@ -355,8 +457,59 @@ static void read_message(spi_device_handle_t spi) {
 		read_can_msg(spi, MCP_READ_RX0, &id, &ext, &rtr_bit, &len, buf);
 	}
 
-	ESP_LOGI(CAN_TAG, "Received: id=%i, ext=%i, rtr_bit=%i, len=%i", id, ext, rtr_bit, len);
+	ESP_LOGI(CAN_TAG, "Received: id=%lu, ext=%i, rtr_bit=%i, len=%i", id, ext, rtr_bit, len);
+
+	/* if (ext || rtr_bit) { */
+	/* 	// We do not really care about these messages at all, so just return */
+	/* 	return; */
+	/* } */
+
+	// @TODO Implement the length check in a more elegant manner
+	switch (id) {
+		case BUTTONS_ID:
+			if (len == sizeof(can::Buttons)) {
+				print_buttons(*(can::Buttons*)buf);
+			} else {
+				ESP_LOGE(CAN_TAG, "Size mismatch... (Buttons)");
+			}
+			break;
+
+		/* case RADIO_ID: */
+		/* 	print_radio(*(can::Radio*)buf); */
+		/* 	break; */
+
+		default:
+			break;
+	}
+
+
 	// @TODO Print the buf data
+}
+
+static void id_to_buf(const uint8_t ext, const unsigned long id, uint8_t* buf) {
+	uint16_t canid = id & 0xFFFF;
+
+	if (ext) {
+		buf[MCP_EID0] = canid & 0xFF;
+		buf[MCP_EID8] = canid >> 8;
+		canid = id >> 16;
+		buf[MCP_SIDL] = canid & 0x03;
+		buf[MCP_SIDL] += canid & 0x1C << 3;
+		buf[MCP_SIDL] |= MCP_TXB_EXIDE_M;
+		buf[MCP_SIDH] = canid >> 5;
+	} else {
+		buf[MCP_SIDH] = canid >> 3;
+		buf[MCP_SIDL] = (canid & 0x07) << 5;
+		buf[MCP_EID0] = 0;
+		buf[MCP_EID8] = 0;
+	}
+}
+
+static void write_id(spi_device_handle_t spi, const uint8_t addr, const uint8_t ext, const unsigned long id) {
+	uint8_t buf[4];
+
+	id_to_buf(ext, id, buf);
+	set_registers(spi, addr, buf, 4);
 }
 
 void can_task(void* params) {
@@ -364,10 +517,7 @@ void can_task(void* params) {
 
 	for (;;) {
 		if (available(spi)) {
-			ESP_LOGI(CAN_TAG, "Available!");
 			read_message(spi);
-		} else {
-			ESP_LOGI(CAN_TAG, "Nothing...");
 		}
 	}
 }
@@ -418,6 +568,15 @@ void can::init() {
 	ESP_LOGI(CAN_TAG, "Enable receive buffers");
 	modify_register(*spi, MCP_RXB0CTRL, MCP_RXB_RX_MASK | MCP_RXB_BUKT_MASK, MCP_RXB_RX_STDEXT | MCP_RXB_BUKT_MASK);
 	modify_register(*spi, MCP_RXB1CTRL, MCP_RXB_RX_MASK, MCP_RXB_RX_STDEXT);
+
+	// @TODO Setup filter so we only receive messages that we are interested in
+	ESP_LOGI(CAN_TAG, "Init mask");
+	write_id(*spi, MCP_RXM0SIDH, 0, 0x3ff);
+	write_id(*spi, MCP_RXM1SIDH, 0, 0x3ff);
+
+	ESP_LOGI(CAN_TAG, "Init filter");
+	/* write_id(*spi, MCP_RXF0SIDH, 0, 0x165); */
+	write_id(*spi, MCP_RXF1SIDH, 0, 0x21f);
 
 	ESP_LOGI(CAN_TAG, "Enter normal mode");
 	set_CANCTRL_mode(*spi, MODE_NORMAL);
