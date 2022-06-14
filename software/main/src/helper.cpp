@@ -41,4 +41,6 @@ void MultiPurposeButton::tick(bool current) {
 		counter = 0;
 		acted = false;
 	}
+
+	previous = current;
 }
