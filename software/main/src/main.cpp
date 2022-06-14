@@ -16,23 +16,23 @@
 
 #define APP_TAG "APP"
 
-void play_task(void*) {
+void task(void*) {
 	for (;;) {
-		esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, ESP_AVRC_PT_CMD_PAUSE, ESP_AVRC_PT_CMD_STATE_PRESSED);
+		ESP_LOGI("TEST", "Pressing");
+
+		static uint8_t cmd = ESP_AVRC_PT_CMD_PLAY;
+		esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, cmd, ESP_AVRC_PT_CMD_STATE_PRESSED);
+		ESP_ERROR_CHECK(ret);
+		ret = esp_avrc_ct_send_passthrough_cmd(1, cmd, ESP_AVRC_PT_CMD_STATE_RELEASED);
 		ESP_ERROR_CHECK(ret);
 
-		ret = esp_avrc_ct_send_passthrough_cmd(1, ESP_AVRC_PT_CMD_PAUSE, ESP_AVRC_PT_CMD_STATE_RELEASED);
-		ESP_ERROR_CHECK(ret);
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-		vTaskDelay(2000 / portTICK_PERIOD_MS);
-
-		ret = esp_avrc_ct_send_passthrough_cmd(0, ESP_AVRC_PT_CMD_PLAY, ESP_AVRC_PT_CMD_STATE_PRESSED);
-		ESP_ERROR_CHECK(ret);
-
-		ret = esp_avrc_ct_send_passthrough_cmd(1, ESP_AVRC_PT_CMD_PLAY, ESP_AVRC_PT_CMD_STATE_RELEASED);
-		ESP_ERROR_CHECK(ret);
-
-		vTaskDelay(2000 / portTICK_PERIOD_MS);
+		if (cmd == ESP_AVRC_PT_CMD_PLAY) {
+			cmd = ESP_AVRC_PT_CMD_PAUSE;
+		} else {
+			cmd = ESP_AVRC_PT_CMD_PLAY;
+		}
 	}
 }
 
@@ -49,16 +49,8 @@ extern "C" void app_main() {
 
 	a2dp::connect_to_last();
 
-	/* xTaskCreate(play_task, "Play task", 2048, nullptr, 0, nullptr); */
+	/* xTaskCreate(task, "Task", 2048, nullptr, 0, nullptr); */
 
 	can::init();
-
-	/* uint8_t button_buffer[3] = { 0b01000110, 22, 0x00 }; */
-	/* can::Buttons buttons = *(can::Buttons*)button_buffer; */
-	/* print_buttons(buttons); */
-
-	/* uint8_t radio_buffer[4] = { 0b10100000, 0b01000000, 0b00110000, 0x00 }; */
-	/* can::Radio radio = *(can::Radio*)radio_buffer; */
-	/* print_radio(radio); */
 }
 

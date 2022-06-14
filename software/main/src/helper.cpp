@@ -12,3 +12,33 @@ const char* connection_state_to_str(esp_a2d_connection_state_t state) {
 	const char* states[4] = {"Disconnected", "Connecting", "Connected", "Disconnecting"};
 	return states[state];
 }
+
+MultiPurposeButton::MultiPurposeButton(void(*short_press)(), void(*long_press)(), uint8_t threshold) : short_press(short_press), long_press(long_press), threshold(threshold) {}
+
+void MultiPurposeButton::tick(bool current) {
+	if (current && !acted) {
+		if (counter >= threshold) {
+			// Long press
+			if (long_press) {
+				ESP_LOGI("MPB", "Long press!");
+				long_press();
+			}
+			acted = true;
+		}
+
+		counter++;
+	} else if (previous != current && !current) {
+		// The button just got released
+
+		// Short press
+		if (counter < threshold) {
+			if (short_press) {
+				ESP_LOGI("MPB", "Short press!");
+				short_press();
+			}
+		}
+
+		counter = 0;
+		acted = false;
+	}
+}
