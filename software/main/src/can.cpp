@@ -458,48 +458,114 @@ static void read_message(spi_device_handle_t spi) {
 		read_can_msg(spi, MCP_READ_RX0, &id, &ext, &rtr_bit, &len, buf);
 	}
 
-	ESP_LOGI(CAN_TAG, "Received: id=%lu, ext=%i, rtr_bit=%i, len=%i", id, ext, rtr_bit, len);
+	/* ESP_LOGI(CAN_TAG, "Received: id=%lu, ext=%i, rtr_bit=%i, len=%i", id, ext, rtr_bit, len); */
 
 	// @TODO Implement the length check in a more elegant manner
-	switch (id) {
-		case BUTTONS_ID:
-			print_buttons(*(can::Buttons*)buf);
-			break;
+	/* switch (id) { */
+	/* 	case BUTTONS_ID: */
+	/* 		print_buttons(*(can::Buttons*)buf); */
+	/* 		break; */
 
-		case RADIO_ID:
-			print_radio(*(can::Radio*)buf);
-			break;
+	/* 	case RADIO_ID: */
+	/* 		print_radio(*(can::Radio*)buf); */
+	/* 		break; */
 
-		default:
-			break;
-	}
+	/* 	default: */
+	/* 		break; */
+	/* } */
 
+	// @TODO Only do this if we actually are on AUX2
 	if (id == BUTTONS_ID) {
 		static can::Buttons previous;
 		can::Buttons buttons = *(can::Buttons*)buf;
 
-		if (previous.forward != buttons.forward && buttons.forward) {
-			// @TODO Get this from the actual device instead of assuming that on startup it is falce
-			static bool play_status = false;
-			play_status = !play_status;
+		// Forward
+		{
+			static uint8_t counter = 0;
+			static bool disabled = false;
 
-			ESP_LOGI(CAN_TAG, "Play button has been pressed");
+			if (buttons.forward && !disabled) {
+				counter++;
 
-			if (play_status) {
-				ESP_LOGI(CAN_TAG, "Playing");
-				// @TODO Abstract this away so that we are not directly interfacing with AVRC things
-				esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, ESP_AVRC_PT_CMD_PLAY, ESP_AVRC_PT_CMD_STATE_PRESSED);
-				ESP_ERROR_CHECK(ret);
+				ESP_LOGI(CAN_TAG, "Counter: %i", counter);
 
-				ret = esp_avrc_ct_send_passthrough_cmd(1, ESP_AVRC_PT_CMD_PLAY, ESP_AVRC_PT_CMD_STATE_RELEASED);
-				ESP_ERROR_CHECK(ret);
-			} else {
-				ESP_LOGI(CAN_TAG, "Pausing");
-				esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, ESP_AVRC_PT_CMD_PAUSE, ESP_AVRC_PT_CMD_STATE_PRESSED);
-				ESP_ERROR_CHECK(ret);
+				if (counter > 5) {
+					ESP_LOGI(CAN_TAG, "Forward");
+					// Fast forward
+					esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, ESP_AVRC_PT_CMD_FORWARD, ESP_AVRC_PT_CMD_STATE_PRESSED);
+					ESP_ERROR_CHECK(ret);
 
-				ret = esp_avrc_ct_send_passthrough_cmd(1, ESP_AVRC_PT_CMD_PAUSE, ESP_AVRC_PT_CMD_STATE_RELEASED);
-				ESP_ERROR_CHECK(ret);
+					ret = esp_avrc_ct_send_passthrough_cmd(1, ESP_AVRC_PT_CMD_FORWARD, ESP_AVRC_PT_CMD_STATE_RELEASED);
+					ESP_ERROR_CHECK(ret);
+
+					// Disable actions from happening again until we release the button
+					disabled = true;
+				}
+			}
+
+			if (previous.forward != buttons.forward && !buttons.forward) {
+				if (counter <= 5) {
+					// @TODO Get this from the actual device instead of assuming that on startup it is falce
+					static bool play_status = false;
+					play_status = !play_status;
+
+					ESP_LOGI(CAN_TAG, "Play button has been pressed");
+
+					if (play_status) {
+						ESP_LOGI(CAN_TAG, "Playing");
+						// @TODO Abstract this away so that we are not directly interfacing with AVRC things
+						esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, ESP_AVRC_PT_CMD_PLAY, ESP_AVRC_PT_CMD_STATE_PRESSED);
+						ESP_ERROR_CHECK(ret);
+
+						ret = esp_avrc_ct_send_passthrough_cmd(1, ESP_AVRC_PT_CMD_PLAY, ESP_AVRC_PT_CMD_STATE_RELEASED);
+						ESP_ERROR_CHECK(ret);
+					} else {
+						ESP_LOGI(CAN_TAG, "Pausing");
+						esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, ESP_AVRC_PT_CMD_PAUSE, ESP_AVRC_PT_CMD_STATE_PRESSED);
+						ESP_ERROR_CHECK(ret);
+
+						ret = esp_avrc_ct_send_passthrough_cmd(1, ESP_AVRC_PT_CMD_PAUSE, ESP_AVRC_PT_CMD_STATE_RELEASED);
+						ESP_ERROR_CHECK(ret);
+					}
+				}
+
+				counter = 0;
+				disabled = false;
+			}
+		}
+
+		// Backwards
+		{
+			static uint8_t counter = 0;
+			static bool disabled = false;
+
+			if (buttons.backward && !disabled) {
+				counter++;
+
+				ESP_LOGI(CAN_TAG, "Counter: %i", counter);
+
+				if (counter > 5) {
+					ESP_LOGI(CAN_TAG, "Backwards");
+					// Fast forward
+					esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, ESP_AVRC_PT_CMD_BACKWARD, ESP_AVRC_PT_CMD_STATE_PRESSED);
+					ESP_ERROR_CHECK(ret);
+
+					ret = esp_avrc_ct_send_passthrough_cmd(1, ESP_AVRC_PT_CMD_BACKWARD, ESP_AVRC_PT_CMD_STATE_RELEASED);
+					ESP_ERROR_CHECK(ret);
+
+					// Disable actions from happening again until we release the button
+					disabled = true;
+				}
+			}
+
+			if (previous.backward != buttons.backward && !buttons.backward) {
+				if (counter <= 5) {
+					// @TODO What do we do when we just press this button?
+					// Might be nice to somehow trigger the google assistant, altough that requires Handsfree profile, which might interfere with the car itself
+				}
+
+				counter = 0;
+				disabled = false;
 			}
 		}
 
