@@ -85,11 +85,14 @@
 #define MCP_TX2IF 0x10
 #define MCP_WAKIF 0x40
 
-static void send_cmd(spi_device_handle_t spi, const uint8_t cmd) {
+static void send_cmd(spi_device_handle_t spi, const uint8_t cmd, bool keep_active = false) {
 	spi_transaction_t t;
 	memset(&t, 0, sizeof(t));
 	t.length = 8;
 	t.tx_buffer = &cmd;
+	if (keep_active) {
+		t.flags = SPI_TRANS_CS_KEEP_ACTIVE;
+	}
 
 	esp_err_t ret = spi_device_polling_transmit(spi, &t);
 	ESP_ERROR_CHECK(ret);
@@ -140,37 +143,6 @@ static void set_register(spi_device_handle_t spi, const uint8_t address, const u
 	ESP_ERROR_CHECK(ret);
 }
 
-static void set_registers(spi_device_handle_t spi, const uint8_t address, const uint8_t* buf, int len) {
-	// Acquire the bus in order to use SPI_TRANS_CS_KEEP_ACTIVE
-	esp_err_t ret = spi_device_acquire_bus(spi, portMAX_DELAY);
-	ESP_ERROR_CHECK(ret);
-
-	// Send the initial command
-	{
-		spi_transaction_t t;
-		memset(&t, 0, sizeof(t));
-		t.length = 8*2;
-		uint8_t cmd[] = { MCP_WRITE, address };
-		t.tx_buffer = cmd;
-		t.flags = SPI_TRANS_CS_KEEP_ACTIVE;
-
-		ret = spi_device_polling_transmit(spi, &t);
-		ESP_ERROR_CHECK(ret);
-	}
-
-	// Send the data
-	spi_transaction_t t;
-	memset(&t, 0, sizeof(t));
-	t.length = 8*len;
-	t.tx_buffer = buf;
-
-	ret = spi_device_polling_transmit(spi, &t);
-	ESP_ERROR_CHECK(ret);
-
-	spi_device_release_bus(spi);
-	ESP_ERROR_CHECK(ret);
-}
-
 static void modify_register(spi_device_handle_t spi, const uint8_t address, const uint8_t mask, const uint8_t data) {
 	spi_transaction_t t;
 	memset(&t, 0, sizeof(t));
@@ -198,13 +170,9 @@ static bool request_new_mode(spi_device_handle_t spi, const uint8_t new_mode) {
 
 }
 
-static uint8_t get_mode(spi_device_handle_t spi) {
-	return read_register(spi, MCP_CANSTAT) & MODE_MASK;
-}
-
 static void set_CANCTRL_mode(spi_device_handle_t spi, uint8_t new_mode) {
 	ESP_LOGI(CAN_TAG, "set_CANCTRL_mode");
-	if (get_mode(spi) == MODE_SLEEP && new_mode != MODE_SLEEP) {
+	if ((read_register(spi, MCP_CANSTAT) & MODE_MASK) == MODE_SLEEP && new_mode != MODE_SLEEP) {
 		ESP_LOGI(CAN_TAG, "if");
 		uint8_t wake_int_enabled = (read_register(spi, MCP_CANINTE) & MCP_WAKIF);
 		if (!wake_int_enabled) {
@@ -257,18 +225,7 @@ static uint8_t read_status(spi_device_handle_t spi) {
 	esp_err_t ret = spi_device_acquire_bus(spi, portMAX_DELAY);
 	ESP_ERROR_CHECK(ret);
 
-	// Send the command
-	{
-		spi_transaction_t t;
-		memset(&t, 0, sizeof(t));
-		t.length = 8;
-		uint8_t cmd[] = { MCP_READ_STATUS };
-		t.tx_buffer = cmd;
-		t.flags = SPI_TRANS_CS_KEEP_ACTIVE;
-
-		ret = spi_device_polling_transmit(spi, &t);
-		ESP_ERROR_CHECK(ret);
-	}
+	send_cmd(spi, MCP_READ_STATUS, true);
 
 	// Read the data
 	spi_transaction_t t;
@@ -285,14 +242,78 @@ static uint8_t read_status(spi_device_handle_t spi) {
 	return t.rx_data[0];
 }
 
-static bool available(spi_device_handle_t spi) {
-	uint8_t res = read_status(spi);
+static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, unsigned long* id, uint8_t* len, uint8_t* buf) {
+	// Acquire the bus in order to use SPI_TRANS_CS_KEEP_ACTIVE
+	esp_err_t ret = spi_device_acquire_bus(spi, portMAX_DELAY);
+	ESP_ERROR_CHECK(ret);
 
-	return res & MCP_STAT_RXIF_MASK;
+	send_cmd(spi, buffer_load_addr, true);
+
+	// Read id + length
+	{
+		spi_transaction_t t;
+		memset(&t, 0, sizeof(t));
+		t.length = 8*5;
+		uint8_t data[5];
+		t.rx_buffer = data;
+		t.flags = SPI_TRANS_CS_KEEP_ACTIVE;
+
+		ret = spi_device_polling_transmit(spi, &t);
+		ESP_ERROR_CHECK(ret);
+
+		*id = (data[MCP_SIDH] << 3) + (data[MCP_SIDL] >> 5);
+		if ((data[MCP_SIDL] & MCP_TXB_EXIDE_M) == MCP_TXB_EXIDE_M) {
+			// Extended id
+			*id = (*id << 2) + (data[MCP_SIDL] & 0x03);
+			*id = (*id << 8) + data[MCP_EID8];
+			*id = (*id << 8) + data[MCP_EID0];
+		}
+
+		*len = data[4] & MCP_DLC_MASK;
+	}
+
+	// Read the data
+	{
+		spi_transaction_t t;
+		memset(&t, 0, sizeof(t));
+		t.length = 8*(*len);
+		t.rx_buffer = buf;
+
+		ret = spi_device_polling_transmit(spi, &t);
+		ESP_ERROR_CHECK(ret);
+	}
+
+	// Make sure we release the bus
+	spi_device_release_bus(spi);
+	ESP_ERROR_CHECK(ret);
 }
 
-static uint8_t read_rx_tx_status(spi_device_handle_t spi) {
-	uint8_t ret = (read_status(spi) & (MCP_STAT_TXIF_MASK | MCP_STAT_RXIF_MASK));
+static void write_id(spi_device_handle_t spi, const uint8_t addr, const unsigned long id) {
+	uint16_t canid = id & 0xFFFF;
+
+	uint8_t cmd[6];
+	cmd[0] = MCP_WRITE;
+	cmd[1] = addr;
+	cmd[MCP_SIDH+2] = canid >> 3;
+	cmd[MCP_SIDL+2] = (canid & 0x07) << 5;
+	cmd[MCP_EID0+2] = 0;
+	cmd[MCP_EID8+2] = 0;
+
+	spi_transaction_t t;
+	memset(&t, 0, sizeof(t));
+	t.length = 8*6;
+	t.tx_buffer = cmd;
+
+	esp_err_t ret = spi_device_polling_transmit(spi, &t);
+	ESP_ERROR_CHECK(ret);
+}
+
+static bool available(uint8_t status) {
+	return status & MCP_STAT_RXIF_MASK;
+}
+
+static uint8_t read_rx_tx_status(uint8_t status) {
+	uint8_t ret = (status & (MCP_STAT_TXIF_MASK | MCP_STAT_RXIF_MASK));
 
 	ret = (ret & MCP_STAT_TX0IF ? MCP_TX0IF : 0) |
 	      (ret & MCP_STAT_TX1IF ? MCP_TX1IF : 0) |
@@ -302,190 +323,39 @@ static uint8_t read_rx_tx_status(spi_device_handle_t spi) {
 	return ret;
 }
 
-static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, unsigned long* id, uint8_t* ext, uint8_t* rtr_bit, uint8_t* len, uint8_t* buf) {
-	// Acquire the bus in order to use SPI_TRANS_CS_KEEP_ACTIVE
-	esp_err_t ret = spi_device_acquire_bus(spi, portMAX_DELAY);
-	ESP_ERROR_CHECK(ret);
-
-	// Send the command
-	{
-		spi_transaction_t t;
-		memset(&t, 0, sizeof(t));
-		t.length = 8;
-		uint8_t cmd[] = { buffer_load_addr };
-		t.tx_buffer = cmd;
-		t.flags = SPI_TRANS_CS_KEEP_ACTIVE;
-
-		ret = spi_device_polling_transmit(spi, &t);
-		ESP_ERROR_CHECK(ret);
-	}
-
-	// Read id + length
-	{
-		spi_transaction_t t;
-		memset(&t, 0, sizeof(t));
-		t.length = 8*(5 + 8);
-		uint8_t data[5 + 8];
-		t.rx_buffer = data;
-		/* t.flags = SPI_TRANS_CS_KEEP_ACTIVE; */
-
-		ret = spi_device_polling_transmit(spi, &t);
-		ESP_ERROR_CHECK(ret);
-
-		*id = (data[MCP_SIDH] << 3) + (data[MCP_SIDL] >> 5);
-		*ext = 0;
-		if ((data[MCP_SIDL] & MCP_TXB_EXIDE_M) == MCP_TXB_EXIDE_M) {
-			// Extended id
-			// @TODO Do we need this for our application
-			*id = (*id << 2) + (data[MCP_SIDL] & 0x03);
-			*id = (*id << 8) + data[MCP_EID8];
-			*id = (*id << 8) + data[MCP_EID0];
-			*ext = 1;
-		}
-
-		*len = data[4] & MCP_DLC_MASK;
-
-		// @TODO Do we need this in our application
-		*rtr_bit = (data[0] & MCP_RTR_MASK) ? 1 : 0;
-
-		// Copy the data into the buffer
-		for (int i = 0; i < *len; ++i) {
-			buf[i] = data[5 + i];
-		}
-	}
-
-	// Read the data
-	/* { */
-	/* 	spi_transaction_t t; */
-	/* 	memset(&t, 0, sizeof(t)); */
-	/* 	t.length = 8*(*len); */
-	/* 	t.rx_buffer = buf; */
-
-	/* 	ret = spi_device_polling_transmit(spi, &t); */
-	/* 	ESP_ERROR_CHECK(ret); */
-	/* } */
-
-	// Make sure we release the bus
-	spi_device_release_bus(spi);
-	ESP_ERROR_CHECK(ret);
-}
-
-static void print_radio(can::Radio radio) {
-	ESP_LOGI(CAN_TAG, "RADIO");
-	if (radio.enabled) {
-		ESP_LOGI(CAN_TAG, "Enabled: %i", radio.enabled);
-	}
-	if (radio.muted) {
-		ESP_LOGI(CAN_TAG, "Muted: %i", radio.muted);
-	}
-	if (radio.cd_changer_available) {
-		ESP_LOGI(CAN_TAG, "CD Changer: %i", radio.cd_changer_available);
-	}
-	switch (radio.disk_status) {
-		case can::DiskStatus::Init:
-			ESP_LOGI(CAN_TAG, "CD: Init");
-			break;
-		case can::DiskStatus::Unavailable:
-			ESP_LOGI(CAN_TAG, "CD: Unavailable");
-			break;
-		case can::DiskStatus::Available:
-			ESP_LOGI(CAN_TAG, "CD: Available");
-			break;
-		default:
-			ESP_LOGW(CAN_TAG, "CD: Invalid");
-			break;
-	}
-
-	switch (radio.source) {
-		case can::Source::Bluetooth:
-			ESP_LOGI(CAN_TAG, "Source: Bluetooth");
-			break;
-		case can::Source::USB:
-			ESP_LOGI(CAN_TAG, "Source: USB");
-			break;
-		case can::Source::AUX2:
-			ESP_LOGI(CAN_TAG, "Source: AUX2");
-			break;
-		case can::Source::AUX1:
-			ESP_LOGI(CAN_TAG, "Source: AUX1");
-			break;
-		case can::Source::CD_Changer:
-			ESP_LOGI(CAN_TAG, "Source: CD Changer");
-			break;
-		case can::Source::CD:
-			ESP_LOGI(CAN_TAG, "Source: CD");
-			break;
-		case can::Source::Tuner:
-			ESP_LOGI(CAN_TAG, "Source: Tuner");
-			break;
-		default:
-			ESP_LOGW(CAN_TAG, "Source: Invalid");
-			break;
-	}
-}
-
-static void id_to_buf(const uint8_t ext, const unsigned long id, uint8_t* buf) {
-	uint16_t canid = id & 0xFFFF;
-
-	if (ext) {
-		buf[MCP_EID0] = canid & 0xFF;
-		buf[MCP_EID8] = canid >> 8;
-		canid = id >> 16;
-		buf[MCP_SIDL] = canid & 0x03;
-		buf[MCP_SIDL] += canid & 0x1C << 3;
-		buf[MCP_SIDL] |= MCP_TXB_EXIDE_M;
-		buf[MCP_SIDH] = canid >> 5;
-	} else {
-		buf[MCP_SIDH] = canid >> 3;
-		buf[MCP_SIDL] = (canid & 0x07) << 5;
-		buf[MCP_EID0] = 0;
-		buf[MCP_EID8] = 0;
-	}
-}
-
-static void write_id(spi_device_handle_t spi, const uint8_t addr, const uint8_t ext, const unsigned long id) {
-	uint8_t buf[4];
-
-	id_to_buf(ext, id, buf);
-	set_registers(spi, addr, buf, 4);
-}
-
-static void read_message(spi_device_handle_t spi) {
-	uint8_t status = read_rx_tx_status(spi);
-
-	unsigned long id;
-	uint8_t ext;
-	uint8_t rtr_bit;
-	uint8_t len;
-	uint8_t buf[8];
-
-	if (status & MCP_RX0IF) {
-		read_can_msg(spi, MCP_READ_RX0, &id, &ext, &rtr_bit, &len, buf);
-	} else if (status & MCP_RX1IF) {
-		read_can_msg(spi, MCP_READ_RX0, &id, &ext, &rtr_bit, &len, buf);
-	}
-
-	// @TODO Only do this if we actually are on AUX2
-	if (id == BUTTONS_ID) {
-		static MultiPurposeButton button_forward(avrcp::play_pause, avrcp::forward);
-		static MultiPurposeButton button_backward(nullptr, avrcp::backward);
-
-		can::Buttons buttons = *(can::Buttons*)buf;
-
-		button_forward.tick(buttons.forward);
-		button_backward.tick(buttons.backward);
-	} else if (id == VOLUME_ID) {
-		can::Volume volume = *(can::Volume*)buf;
-		avrcp::set_volume(ceil(volume.volume * 4.2f));
-	}
-}
-
 static void can_task(void* params) {
 	spi_device_handle_t spi = *(spi_device_handle_t*)params;
 
 	for (;;) {
-		if (available(spi)) {
-			read_message(spi);
+		uint8_t status = read_status(spi);
+
+		if (available(status)) {
+			uint8_t rx_tx_status = read_rx_tx_status(status);
+
+			unsigned long id;
+			uint8_t len;
+			uint8_t buf[8];
+
+			if (rx_tx_status & MCP_RX0IF) {
+				read_can_msg(spi, MCP_READ_RX0, &id, &len, buf);
+			} else if (rx_tx_status & MCP_RX1IF) {
+				read_can_msg(spi, MCP_READ_RX0, &id, &len, buf);
+			}
+
+			// @TODO Only do this if we actually are on AUX2
+			if (id == BUTTONS_ID) {
+				can::Buttons buttons = can::convert<can::Buttons>(buf, len);
+
+				static MultiPurposeButton button_forward(avrcp::play_pause, avrcp::forward);
+				button_forward.update(buttons.forward);
+
+				static MultiPurposeButton button_backward(nullptr, avrcp::backward);
+				button_backward.update(buttons.backward);
+			} else if (id == VOLUME_ID) {
+				can::Volume volume = can::convert<can::Volume>(buf, len);
+
+				avrcp::set_volume(ceil(volume.volume * 4.2f));
+			}
 		}
 	}
 }
@@ -539,16 +409,16 @@ void can::init() {
 
 	// @TODO Setup filter so we only receive messages that we are interested in
 	ESP_LOGI(CAN_TAG, "Init mask");
-	write_id(*spi, MCP_RXM0SIDH, 0, 0x3ff);
-	write_id(*spi, MCP_RXM1SIDH, 0, 0x3ff);
+	write_id(*spi, MCP_RXM0SIDH, 0x3ff);
+	write_id(*spi, MCP_RXM1SIDH, 0x3ff);
 
 	ESP_LOGI(CAN_TAG, "Init filter");
 	// @TODO WATCH OUT FOR ADDRESS
 	/* write_id(*spi, MCP_RXF0SIDH, 0, RADIO_ID); */
 	/* write_id(*spi, MCP_RXF0SIDH, 0, VOLUME_ID); */
-	write_id(*spi, MCP_RXF1SIDH, 0, BUTTONS_ID);
+	write_id(*spi, MCP_RXF1SIDH, BUTTONS_ID);
 
-	write_id(*spi, MCP_RXF0SIDH, 0, 0);
+	write_id(*spi, MCP_RXF0SIDH, 0);
 
 	ESP_LOGI(CAN_TAG, "Enter normal mode");
 	set_CANCTRL_mode(*spi, MODE_NORMAL);

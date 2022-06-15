@@ -10,7 +10,7 @@ class MultiPurposeButton {
 	public:
 		MultiPurposeButton(void(*short_press)(), void(*long_press)(), uint16_t threshold = 500);
 
-		void tick(bool current);
+		void update(bool current);
 
 	private:
 		void(* const short_press)();

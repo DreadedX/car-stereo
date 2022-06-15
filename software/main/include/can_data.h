@@ -1,13 +1,21 @@
 #pragma once
 
 #include <cstdint>
-#include <stdint.h>
+#include <cassert>
 
 #define RADIO_ID 0x165
 #define VOLUME_ID 0x1A5
 #define BUTTONS_ID 0x21f
 
 namespace can {
+	template <typename T>
+	static T convert(uint8_t* buf, uint8_t len) {
+		// @TODO Handle errors in a more elegant manner
+		assert(len != sizeof(T));
+
+		return *(T*)buf;
+	}
+
 	enum Source : uint8_t {
 		Bluetooth = 0b111,
 		USB = 0b110,
