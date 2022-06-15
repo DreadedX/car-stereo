@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <string.h>
+#include <cmath>
 
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -364,32 +365,6 @@ static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, unsi
 	ESP_ERROR_CHECK(ret);
 }
 
-static void print_buttons(can::Buttons buttons) {
-	/* ESP_LOGI(CAN_TAG, "BUTTONS"); */
-	if (buttons.forward) {
-		ESP_LOGI(CAN_TAG, "Button: F");
-	}
-	if (buttons.backward) {
-		ESP_LOGI(CAN_TAG, "Button: B");
-	}
-	if (buttons.volume_up) {
-		ESP_LOGI(CAN_TAG, "Button: U");
-	}
-	if (buttons.volume_down) {
-		ESP_LOGI(CAN_TAG, "Button: D");
-	}
-	if (buttons.source) {
-		ESP_LOGI(CAN_TAG, "Button: S");
-	}
-
-	// Only print when scroll changes value
-	static uint8_t scroll = 0;
-	if (buttons.scroll != scroll) {
-		scroll = buttons.scroll;
-		ESP_LOGI(CAN_TAG, "Scroll: %i", buttons.scroll);
-	}
-}
-
 static void print_radio(can::Radio radio) {
 	ESP_LOGI(CAN_TAG, "RADIO");
 	if (radio.enabled) {
@@ -444,33 +419,6 @@ static void print_radio(can::Radio radio) {
 	}
 }
 
-static void read_message(spi_device_handle_t spi) {
-	uint8_t status = read_rx_tx_status(spi);
-
-	unsigned long id;
-	uint8_t ext;
-	uint8_t rtr_bit;
-	uint8_t len;
-	uint8_t buf[8];
-
-	if (status & MCP_RX0IF) {
-		read_can_msg(spi, MCP_READ_RX0, &id, &ext, &rtr_bit, &len, buf);
-	} else if (status & MCP_RX1IF) {
-		read_can_msg(spi, MCP_READ_RX0, &id, &ext, &rtr_bit, &len, buf);
-	}
-
-	// @TODO Only do this if we actually are on AUX2
-	if (id == BUTTONS_ID) {
-		static MultiPurposeButton button_forward(avrcp::play_pause, avrcp::forward);
-		static MultiPurposeButton button_backward(nullptr, avrcp::backward);
-
-		can::Buttons buttons = *(can::Buttons*)buf;
-
-		button_forward.tick(buttons.forward);
-		button_backward.tick(buttons.backward);
-	}
-}
-
 static void id_to_buf(const uint8_t ext, const unsigned long id, uint8_t* buf) {
 	uint16_t canid = id & 0xFFFF;
 
@@ -497,7 +445,39 @@ static void write_id(spi_device_handle_t spi, const uint8_t addr, const uint8_t 
 	set_registers(spi, addr, buf, 4);
 }
 
-void can_task(void* params) {
+static void read_message(spi_device_handle_t spi) {
+	uint8_t status = read_rx_tx_status(spi);
+
+	unsigned long id;
+	uint8_t ext;
+	uint8_t rtr_bit;
+	uint8_t len;
+	uint8_t buf[8];
+
+	if (status & MCP_RX0IF) {
+		read_can_msg(spi, MCP_READ_RX0, &id, &ext, &rtr_bit, &len, buf);
+	} else if (status & MCP_RX1IF) {
+		read_can_msg(spi, MCP_READ_RX0, &id, &ext, &rtr_bit, &len, buf);
+	}
+
+	// @TODO Only do this if we actually are on AUX2
+	if (id == BUTTONS_ID) {
+		static MultiPurposeButton button_forward(avrcp::play_pause, avrcp::forward);
+		static MultiPurposeButton button_backward(nullptr, avrcp::backward);
+
+		can::Buttons buttons = *(can::Buttons*)buf;
+
+		button_forward.tick(buttons.forward);
+		button_backward.tick(buttons.backward);
+	} else if (id == VOLUME_ID) {
+		can::Volume volume = *(can::Volume*)buf;
+		if (volume.scrolled()) {
+			avrcp::set_volume(ceil(volume.volume * 4.2f));
+		}
+	}
+}
+
+static void can_task(void* params) {
 	spi_device_handle_t spi = *(spi_device_handle_t*)params;
 
 	for (;;) {
@@ -561,6 +541,7 @@ void can::init() {
 
 	ESP_LOGI(CAN_TAG, "Init filter");
 	/* write_id(*spi, MCP_RXF0SIDH, 0, 0x165); */
+	write_id(*spi, MCP_RXF1SIDH, 0, 0x1a5);
 	write_id(*spi, MCP_RXF1SIDH, 0, 0x21f);
 
 	ESP_LOGI(CAN_TAG, "Enter normal mode");

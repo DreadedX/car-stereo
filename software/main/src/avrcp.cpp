@@ -9,6 +9,10 @@
 static esp_avrc_rn_evt_cap_mask_t s_avrc_peer_rn_cap;
 static esp_avrc_playback_stat_t playback_status = ESP_AVRC_PLAYBACK_STOPPED;
 
+static uint8_t volume = 127;
+static _lock_t volume_lock;
+static bool volume_notify = false;
+
 static void playback_changed() {
 	if (esp_avrc_rn_evt_bit_mask_operation(ESP_AVRC_BIT_MASK_OP_TEST, &s_avrc_peer_rn_cap, ESP_AVRC_RN_PLAY_STATUS_CHANGE)) {
 		esp_avrc_ct_send_register_notification_cmd(1, ESP_AVRC_RN_PLAY_STATUS_CHANGE, 0);
@@ -27,6 +31,13 @@ static void notify_handler(uint8_t event_id, esp_avrc_rn_param_t *event_paramete
 			ESP_LOGI(AVRCP_TAG, "unhandled event: %d", event_id);
 			break;
 	}
+}
+
+static void set_volume_value(uint8_t v) {
+	ESP_LOGI(AVRCP_TAG, "Setting internal volume value to %i", v);
+	_lock_acquire(&volume_lock);
+	volume = v;
+	_lock_release(&volume_lock);
 }
 
 static void rc_ct_callback(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
@@ -71,6 +82,7 @@ static void rc_tg_callback(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t*
 		case ESP_AVRC_TG_SET_ABSOLUTE_VOLUME_CMD_EVT:
 			ESP_LOGI(AVRCP_TAG, "AVRC set absolute volume: %d%%", (int)param->set_abs_vol.volume * 100/ 0x7f);
 			// The phone want to change the volume
+			set_volume_value(param->set_abs_vol.volume);
 			break;
 
 		case ESP_AVRC_TG_REGISTER_NOTIFICATION_EVT:
@@ -83,11 +95,14 @@ static void rc_tg_callback(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t*
 				// However for now it is not really relevant as the volume control is doen by the car
 				// In the future however it might be nice to sync the value on the phone, the esp and the car
 				// This will require some sort of CAN bus access
+				volume_notify = true;
 				esp_avrc_rn_param_t rn_param;
-				rn_param.volume = 127;
+				rn_param.volume = volume;
 				esp_avrc_tg_send_rn_rsp(ESP_AVRC_RN_VOLUME_CHANGE, ESP_AVRC_RN_RSP_INTERIM, &rn_param);
+			} else if (param->reg_ntf.event_id == ESP_AVRC_RN_PLAY_POS_CHANGED) {
+				ESP_LOGI(AVRCP_TAG, "We can change the play position?");
 			} else {
-				ESP_LOGW(AVRCP_TAG, "AVRC Volume Changes NOT Supported");
+				ESP_LOGI(AVRCP_TAG, "Something else!");
 			}
 			break;
 
@@ -106,12 +121,23 @@ void avrcp::init() {
 
 	// Initialize AVRCP target
 	if (esp_avrc_tg_init() == ESP_OK) {
-		esp_avrc_tg_register_callback(rc_tg_callback);
-		esp_avrc_rn_evt_cap_mask_t evt_set = {0};
-		esp_avrc_rn_evt_bit_mask_operation(ESP_AVRC_BIT_MASK_OP_SET, &evt_set, ESP_AVRC_RN_VOLUME_CHANGE);
-		if (esp_avrc_tg_set_rn_evt_cap(&evt_set) != ESP_OK) {
-			ESP_LOGE(AVRCP_TAG, "esp_avrc_tg_set_rn_evt_cap failed");
+		{
+			esp_avrc_tg_register_callback(rc_tg_callback);
+			esp_avrc_rn_evt_cap_mask_t evt_set = {0};
+			esp_avrc_rn_evt_bit_mask_operation(ESP_AVRC_BIT_MASK_OP_SET, &evt_set, ESP_AVRC_RN_VOLUME_CHANGE);
+			if (esp_avrc_tg_set_rn_evt_cap(&evt_set) != ESP_OK) {
+				ESP_LOGE(AVRCP_TAG, "esp_avrc_tg_set_rn_evt_cap failed");
+			}
 		}
+
+		/* { */
+		/* 	esp_avrc_tg_register_callback(rc_tg_callback); */
+		/* 	esp_avrc_rn_evt_cap_mask_t evt_set = {0}; */
+		/* 	esp_avrc_rn_evt_bit_mask_operation(ESP_AVRC_BIT_MASK_OP_SET, &evt_set, ESP_AVRC_RN_PLAY_POS_CHANGED); */
+		/* 	if (esp_avrc_tg_set_rn_evt_cap(&evt_set) != ESP_OK) { */
+		/* 		ESP_LOGE(AVRCP_TAG, "esp_avrc_tg_set_rn_evt_cap failed"); */
+		/* 	} */
+		/* } */
 	} else {
 		ESP_LOGE(AVRCP_TAG, "esp_avrc_tg_init failed");
 	}
@@ -150,3 +176,16 @@ void avrcp::backward() {
 
 	send_cmd(ESP_AVRC_PT_CMD_BACKWARD);
 }
+
+void avrcp::set_volume(uint8_t v) {
+	set_volume_value(v);
+
+	if (volume_notify) {
+		ESP_LOGI(AVRCP_TAG, "Setting remote volume value to %i", v);
+		esp_avrc_rn_param_t rn_param;
+		rn_param.volume = volume;
+		esp_avrc_tg_send_rn_rsp(ESP_AVRC_RN_VOLUME_CHANGE, ESP_AVRC_RN_RSP_CHANGED, &rn_param);
+		volume_notify = false;
+	}
+}
+

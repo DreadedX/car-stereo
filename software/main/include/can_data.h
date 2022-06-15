@@ -3,26 +3,11 @@
 #include <cstdint>
 #include <stdint.h>
 
-#define BUTTONS_ID 0x21f
 #define RADIO_ID 0x165
+#define VOLUME_ID 0x1A5
+#define BUTTONS_ID 0x21f
 
 namespace can {
-	#pragma pack(1)
-	struct Buttons {
-		uint8_t _1 : 1;
-		bool source : 1;
-		bool volume_down : 1;
-		bool volume_up : 1;
-		uint8_t _2 : 2;
-		bool backward : 1;
-		bool forward : 1;
-
-		uint8_t scroll : 8;
-
-		uint8_t _3 : 8;
-	};
-	#pragma pack()
-
 	enum Source : uint8_t {
 		Bluetooth = 0b111,
 		USB = 0b110,
@@ -56,6 +41,33 @@ namespace can {
 		uint8_t _6 : 1;
 
 		uint8_t _7 : 8;
+	};
+	#pragma pack()
+
+	#pragma pack(1)
+	struct Buttons {
+		uint8_t _1 : 1;
+		bool source : 1;
+		bool volume_down : 1;
+		bool volume_up : 1;
+		uint8_t _2 : 2;
+		bool backward : 1;
+		bool forward : 1;
+
+		uint8_t scroll : 8;
+
+		uint8_t _3 : 8;
+	};
+	#pragma pack()
+
+	#pragma pack(1)
+	struct Volume {
+		uint8_t _upper : 3;
+		uint8_t volume : 5;
+
+		bool scrolled() {
+			return _upper == 0b000;
+		}
 	};
 	#pragma pack()
 }
