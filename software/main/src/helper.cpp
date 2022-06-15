@@ -15,6 +15,7 @@ const char* connection_state_to_str(esp_a2d_connection_state_t state) {
 
 MultiPurposeButton::MultiPurposeButton(void(*short_press)(), void(*long_press)(), uint8_t threshold) : short_press(short_press), long_press(long_press), threshold(threshold) {}
 
+// @TOOD Use a timer instead of amount of updates as this can be inconsistent (e.g. when in eco mode)
 void MultiPurposeButton::tick(bool current) {
 	if (current && !acted) {
 		if (counter >= threshold) {

@@ -62,12 +62,8 @@ namespace can {
 
 	#pragma pack(1)
 	struct Volume {
-		uint8_t _upper : 3;
 		uint8_t volume : 5;
-
-		bool scrolled() {
-			return _upper == 0b000;
-		}
+		uint8_t _1 : 3;
 	};
 	#pragma pack()
 }

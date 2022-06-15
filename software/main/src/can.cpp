@@ -324,10 +324,10 @@ static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, unsi
 	{
 		spi_transaction_t t;
 		memset(&t, 0, sizeof(t));
-		t.length = 8*5;
-		uint8_t data[5];
+		t.length = 8*(5 + 8);
+		uint8_t data[5 + 8];
 		t.rx_buffer = data;
-		t.flags = SPI_TRANS_CS_KEEP_ACTIVE;
+		/* t.flags = SPI_TRANS_CS_KEEP_ACTIVE; */
 
 		ret = spi_device_polling_transmit(spi, &t);
 		ESP_ERROR_CHECK(ret);
@@ -347,18 +347,23 @@ static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, unsi
 
 		// @TODO Do we need this in our application
 		*rtr_bit = (data[0] & MCP_RTR_MASK) ? 1 : 0;
+
+		// Copy the data into the buffer
+		for (int i = 0; i < *len; ++i) {
+			buf[i] = data[5 + i];
+		}
 	}
 
 	// Read the data
-	{
-		spi_transaction_t t;
-		memset(&t, 0, sizeof(t));
-		t.length = 8*(*len);
-		t.rx_buffer = buf;
+	/* { */
+	/* 	spi_transaction_t t; */
+	/* 	memset(&t, 0, sizeof(t)); */
+	/* 	t.length = 8*(*len); */
+	/* 	t.rx_buffer = buf; */
 
-		ret = spi_device_polling_transmit(spi, &t);
-		ESP_ERROR_CHECK(ret);
-	}
+	/* 	ret = spi_device_polling_transmit(spi, &t); */
+	/* 	ESP_ERROR_CHECK(ret); */
+	/* } */
 
 	// Make sure we release the bus
 	spi_device_release_bus(spi);
@@ -471,9 +476,7 @@ static void read_message(spi_device_handle_t spi) {
 		button_backward.tick(buttons.backward);
 	} else if (id == VOLUME_ID) {
 		can::Volume volume = *(can::Volume*)buf;
-		if (volume.scrolled()) {
-			avrcp::set_volume(ceil(volume.volume * 4.2f));
-		}
+		avrcp::set_volume(ceil(volume.volume * 4.2f));
 	}
 }
 
@@ -504,7 +507,7 @@ void can::init() {
 	ESP_LOGI(CAN_TAG, "Adding device");
 	spi_device_interface_config_t devcfg = {
 		.mode=0,
-		.clock_speed_hz=10*1000*1000,
+		.clock_speed_hz=20*1000*1000,
 		.spics_io_num=PIN_NUM_CS,
 		.queue_size=7,
 	};
@@ -540,9 +543,12 @@ void can::init() {
 	write_id(*spi, MCP_RXM1SIDH, 0, 0x3ff);
 
 	ESP_LOGI(CAN_TAG, "Init filter");
-	/* write_id(*spi, MCP_RXF0SIDH, 0, 0x165); */
-	write_id(*spi, MCP_RXF1SIDH, 0, 0x1a5);
-	write_id(*spi, MCP_RXF1SIDH, 0, 0x21f);
+	// @TODO WATCH OUT FOR ADDRESS
+	/* write_id(*spi, MCP_RXF0SIDH, 0, RADIO_ID); */
+	/* write_id(*spi, MCP_RXF0SIDH, 0, VOLUME_ID); */
+	write_id(*spi, MCP_RXF1SIDH, 0, BUTTONS_ID);
+
+	write_id(*spi, MCP_RXF0SIDH, 0, 0);
 
 	ESP_LOGI(CAN_TAG, "Enter normal mode");
 	set_CANCTRL_mode(*spi, MODE_NORMAL);

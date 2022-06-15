@@ -178,8 +178,14 @@ void avrcp::backward() {
 }
 
 void avrcp::set_volume(uint8_t v) {
+	// Make sure the volume is actually changed
+	if (v == volume) {
+		return;
+	}
+
 	set_volume_value(v);
 
+	// @TODO What we the device supports remote volume but we can not send it yet?
 	if (volume_notify) {
 		ESP_LOGI(AVRCP_TAG, "Setting remote volume value to %i", v);
 		esp_avrc_rn_param_t rn_param;

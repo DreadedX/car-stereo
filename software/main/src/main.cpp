@@ -45,6 +45,6 @@ extern "C" void app_main() {
 
 	/* xTaskCreate(task, "Task", 2048, nullptr, 0, nullptr); */
 
-	/* can::init(); */
+	can::init();
 }
 
