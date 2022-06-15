@@ -8,15 +8,15 @@ const char* connection_state_to_str(esp_a2d_connection_state_t state);
 
 class MultiPurposeButton {
 	public:
-		MultiPurposeButton(void(*short_press)(), void(*long_press)(), uint8_t threshold = 5);
+		MultiPurposeButton(void(*short_press)(), void(*long_press)(), uint16_t threshold = 500);
 
 		void tick(bool current);
 
 	private:
-		void(*short_press)();
-		void(*long_press)();
-		uint8_t threshold = 5;
+		void(* const short_press)();
+		void(* const long_press)();
+		const int16_t threshold = 500;
+		uint64_t start = 0;
 		bool previous = false;
-		uint8_t counter = 0;
 		bool acted = false;
 };
