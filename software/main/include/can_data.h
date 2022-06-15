@@ -11,7 +11,7 @@ namespace can {
 	template <typename T>
 	static T convert(uint8_t* buf, uint8_t len) {
 		// @TODO Handle errors in a more elegant manner
-		assert(len != sizeof(T));
+		assert(len == sizeof(T));
 
 		return *(T*)buf;
 	}

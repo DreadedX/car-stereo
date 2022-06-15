@@ -8,7 +8,7 @@ const char* connection_state_to_str(esp_a2d_connection_state_t state);
 
 class MultiPurposeButton {
 	public:
-		MultiPurposeButton(void(*short_press)(), void(*long_press)(), uint16_t threshold = 500);
+		MultiPurposeButton(void(*short_press)(), void(*long_press)(), uint16_t threshold = 300);
 
 		void update(bool current);
 

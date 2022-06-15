@@ -19,12 +19,14 @@ MultiPurposeButton::MultiPurposeButton(void(*short_press)(), void(*long_press)()
 // @TOOD Use a timer instead of amount of updates as this can be inconsistent (e.g. when in eco mode)
 void MultiPurposeButton::update(bool current) {
 	if (current != previous && current) {
-		// Button just got presset
+		ESP_LOGI("MPB", "Button pressed");
+		// Button just got pressed
 		start = esp_timer_get_time();
 	} else if (previous != current && !current) {
+		ESP_LOGI("MPB", "Button released");
 		// The button just got released
 		// Check for short press
-		if (esp_timer_get_time() - start < threshold) {
+		if (esp_timer_get_time() - start < threshold * 1000) {
 			if (short_press) {
 				ESP_LOGI("MPB", "Short press!");
 				short_press();
@@ -35,7 +37,7 @@ void MultiPurposeButton::update(bool current) {
 	} else if (current && !acted) {
 		// Button is still being pressed
 		// Check if we exceed the timer for a long press
-		if (esp_timer_get_time() >= threshold) {
+		if (esp_timer_get_time() - start >= threshold * 1000) {
 			if (long_press) {
 				ESP_LOGI("MPB", "Long press!");
 				long_press();

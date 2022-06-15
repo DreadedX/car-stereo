@@ -242,45 +242,29 @@ static uint8_t read_status(spi_device_handle_t spi) {
 	return t.rx_data[0];
 }
 
-static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, unsigned long* id, uint8_t* len, uint8_t* buf) {
+static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, uint16_t* id, uint8_t* len, uint8_t* buf) {
 	// Acquire the bus in order to use SPI_TRANS_CS_KEEP_ACTIVE
 	esp_err_t ret = spi_device_acquire_bus(spi, portMAX_DELAY);
 	ESP_ERROR_CHECK(ret);
 
 	send_cmd(spi, buffer_load_addr, true);
 
-	// Read id + length
-	{
-		spi_transaction_t t;
-		memset(&t, 0, sizeof(t));
-		t.length = 8*5;
-		uint8_t data[5];
-		t.rx_buffer = data;
-		t.flags = SPI_TRANS_CS_KEEP_ACTIVE;
+	// Read id + length +  data
+	spi_transaction_t t;
+	memset(&t, 0, sizeof(t));
+	t.length = 8*(5+8);
+	uint8_t data[5+8];
+	t.rx_buffer = data;
 
-		ret = spi_device_polling_transmit(spi, &t);
-		ESP_ERROR_CHECK(ret);
+	ret = spi_device_polling_transmit(spi, &t);
+	ESP_ERROR_CHECK(ret);
 
-		*id = (data[MCP_SIDH] << 3) + (data[MCP_SIDL] >> 5);
-		if ((data[MCP_SIDL] & MCP_TXB_EXIDE_M) == MCP_TXB_EXIDE_M) {
-			// Extended id
-			*id = (*id << 2) + (data[MCP_SIDL] & 0x03);
-			*id = (*id << 8) + data[MCP_EID8];
-			*id = (*id << 8) + data[MCP_EID0];
-		}
+	*id = (data[MCP_SIDH] << 3) + (data[MCP_SIDL] >> 5);
 
-		*len = data[4] & MCP_DLC_MASK;
-	}
+	*len = data[4] & MCP_DLC_MASK;
 
-	// Read the data
-	{
-		spi_transaction_t t;
-		memset(&t, 0, sizeof(t));
-		t.length = 8*(*len);
-		t.rx_buffer = buf;
-
-		ret = spi_device_polling_transmit(spi, &t);
-		ESP_ERROR_CHECK(ret);
+	for (int i = 0; i < *len; ++i) {
+		buf[i] = data[5 + i];
 	}
 
 	// Make sure we release the bus
@@ -288,14 +272,12 @@ static void read_can_msg(spi_device_handle_t spi, uint8_t buffer_load_addr, unsi
 	ESP_ERROR_CHECK(ret);
 }
 
-static void write_id(spi_device_handle_t spi, const uint8_t addr, const unsigned long id) {
-	uint16_t canid = id & 0xFFFF;
-
+static void write_id(spi_device_handle_t spi, const uint8_t addr, const uint16_t id) {
 	uint8_t cmd[6];
 	cmd[0] = MCP_WRITE;
 	cmd[1] = addr;
-	cmd[MCP_SIDH+2] = canid >> 3;
-	cmd[MCP_SIDL+2] = (canid & 0x07) << 5;
+	cmd[MCP_SIDH+2] = id >> 3;
+	cmd[MCP_SIDL+2] = (id & 0x07) << 5;
 	cmd[MCP_EID0+2] = 0;
 	cmd[MCP_EID8+2] = 0;
 
@@ -332,7 +314,7 @@ static void can_task(void* params) {
 		if (available(status)) {
 			uint8_t rx_tx_status = read_rx_tx_status(status);
 
-			unsigned long id;
+			uint16_t id;
 			uint8_t len;
 			uint8_t buf[8];
 
@@ -353,7 +335,6 @@ static void can_task(void* params) {
 				button_backward.update(buttons.backward);
 			} else if (id == VOLUME_ID) {
 				can::Volume volume = can::convert<can::Volume>(buf, len);
-
 				avrcp::set_volume(ceil(volume.volume * 4.2f));
 			}
 		}
@@ -377,7 +358,7 @@ void can::init() {
 	ESP_LOGI(CAN_TAG, "Adding device");
 	spi_device_interface_config_t devcfg = {
 		.mode=0,
-		.clock_speed_hz=20*1000*1000,
+		.clock_speed_hz=10*1000*1000,
 		.spics_io_num=PIN_NUM_CS,
 		.queue_size=7,
 	};
@@ -404,7 +385,8 @@ void can::init() {
 	set_register(*spi, MCP_CANINTE, MCP_RX0IF | MCP_RX1IF);
 
 	ESP_LOGI(CAN_TAG, "Enable receive buffers");
-	modify_register(*spi, MCP_RXB0CTRL, MCP_RXB_RX_MASK | MCP_RXB_BUKT_MASK, MCP_RXB_RX_STDEXT | MCP_RXB_BUKT_MASK);
+	/* modify_register(*spi, MCP_RXB0CTRL, MCP_RXB_RX_MASK | MCP_RXB_BUKT_MASK, MCP_RXB_RX_STDEXT | MCP_RXB_BUKT_MASK); */
+	modify_register(*spi, MCP_RXB0CTRL, MCP_RXB_RX_MASK, MCP_RXB_RX_STDEXT);
 	modify_register(*spi, MCP_RXB1CTRL, MCP_RXB_RX_MASK, MCP_RXB_RX_STDEXT);
 
 	// @TODO Setup filter so we only receive messages that we are interested in
@@ -414,16 +396,17 @@ void can::init() {
 
 	ESP_LOGI(CAN_TAG, "Init filter");
 	// @TODO WATCH OUT FOR ADDRESS
-	/* write_id(*spi, MCP_RXF0SIDH, 0, RADIO_ID); */
-	/* write_id(*spi, MCP_RXF0SIDH, 0, VOLUME_ID); */
+	/* write_id(*spi, MCP_RXF0SIDH, RADIO_ID); */
+	write_id(*spi, MCP_RXF0SIDH, VOLUME_ID);
 	write_id(*spi, MCP_RXF1SIDH, BUTTONS_ID);
 
-	write_id(*spi, MCP_RXF0SIDH, 0);
+	/* write_id(*spi, MCP_RXF0SIDH, 0); */
+	/* write_id(*spi, MCP_RXF1SIDH, 0); */
 
 	ESP_LOGI(CAN_TAG, "Enter normal mode");
 	set_CANCTRL_mode(*spi, MODE_NORMAL);
 
 	ESP_LOGI(CAN_TAG, "Init done!");
 
-	xTaskCreate(can_task, "CAN Task", 4096, spi, 0, nullptr);
+	xTaskCreatePinnedToCore(can_task, "CAN Task", 4096, spi, 0, nullptr, 0);
 }
