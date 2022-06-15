@@ -55,6 +55,7 @@
 // Registers
 #define MCP_RXF0SIDH 0x00
 #define MCP_RXF1SIDH 0x04
+#define MCP_RXF2SIDH 0x08
 #define MCP_CANSTAT  0x0E
 #define MCP_CANCTRL  0x0F
 #define MCP_RXM0SIDH 0x20
@@ -324,18 +325,36 @@ static void can_task(void* params) {
 				read_can_msg(spi, MCP_READ_RX0, &id, &len, buf);
 			}
 
-			// @TODO Only do this if we actually are on AUX2
-			if (id == BUTTONS_ID) {
-				can::Buttons buttons = can::convert<can::Buttons>(buf, len);
+			static bool enabled = false;
+			switch (id) {
+				case BUTTONS_ID:
+					if (enabled) {
+						can::Buttons buttons = can::convert<can::Buttons>(buf, len);
 
-				static MultiPurposeButton button_forward(avrcp::play_pause, avrcp::forward);
-				button_forward.update(buttons.forward);
+						static MultiPurposeButton button_forward(avrcp::play_pause, avrcp::forward);
+						button_forward.update(buttons.forward);
 
-				static MultiPurposeButton button_backward(nullptr, avrcp::backward);
-				button_backward.update(buttons.backward);
-			} else if (id == VOLUME_ID) {
-				can::Volume volume = can::convert<can::Volume>(buf, len);
-				avrcp::set_volume(ceil(volume.volume * 4.2f));
+						static MultiPurposeButton button_backward(nullptr, avrcp::backward);
+						button_backward.update(buttons.backward);
+					}
+					break;
+
+				case VOLUME_ID:
+					if (enabled) {
+						can::Volume volume = can::convert<can::Volume>(buf, len);
+						avrcp::set_volume(ceil(volume.volume * 4.2f));
+					}
+					break;
+
+				case RADIO_ID:
+					{
+						can::Radio radio = can::convert<can::Radio>(buf, len);
+						enabled = (radio.source == can::Source::AUX2) && (radio.enabled);
+					}
+					break;
+				
+				default:
+					break;
 			}
 		}
 	}
@@ -389,19 +408,14 @@ void can::init() {
 	modify_register(*spi, MCP_RXB0CTRL, MCP_RXB_RX_MASK, MCP_RXB_RX_STDEXT);
 	modify_register(*spi, MCP_RXB1CTRL, MCP_RXB_RX_MASK, MCP_RXB_RX_STDEXT);
 
-	// @TODO Setup filter so we only receive messages that we are interested in
 	ESP_LOGI(CAN_TAG, "Init mask");
 	write_id(*spi, MCP_RXM0SIDH, 0x3ff);
 	write_id(*spi, MCP_RXM1SIDH, 0x3ff);
 
 	ESP_LOGI(CAN_TAG, "Init filter");
-	// @TODO WATCH OUT FOR ADDRESS
-	/* write_id(*spi, MCP_RXF0SIDH, RADIO_ID); */
-	write_id(*spi, MCP_RXF0SIDH, VOLUME_ID);
-	write_id(*spi, MCP_RXF1SIDH, BUTTONS_ID);
-
-	/* write_id(*spi, MCP_RXF0SIDH, 0); */
-	/* write_id(*spi, MCP_RXF1SIDH, 0); */
+	write_id(*spi, MCP_RXF0SIDH, RADIO_ID);
+	write_id(*spi, MCP_RXF1SIDH, VOLUME_ID);
+	write_id(*spi, MCP_RXF2SIDH, BUTTONS_ID);
 
 	ESP_LOGI(CAN_TAG, "Enter normal mode");
 	set_CANCTRL_mode(*spi, MODE_NORMAL);
