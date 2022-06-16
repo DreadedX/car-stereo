@@ -343,9 +343,20 @@ static void can_task(void* params) {
 							int8_t diff = buttons.scroll - scroll;
 
 							if (diff < 0) {
-								avrcp::seek_backward();
-							} else {
+								// 6 times to skip 6x5s = 30s
 								avrcp::seek_forward();
+								avrcp::seek_forward();
+								avrcp::seek_forward();
+								avrcp::seek_forward();
+								avrcp::seek_forward();
+								avrcp::seek_forward();
+							} else {
+								avrcp::seek_backward();
+								avrcp::seek_backward();
+								avrcp::seek_backward();
+								avrcp::seek_backward();
+								avrcp::seek_backward();
+								avrcp::seek_backward();
 							}
 
 							scroll = buttons.scroll;
