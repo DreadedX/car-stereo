@@ -325,7 +325,8 @@ static void can_task(void* params) {
 				read_can_msg(spi, MCP_READ_RX0, &id, &len, buf);
 			}
 
-			static bool enabled = false;
+			// @TODO Set this to false again once source detections works
+			static bool enabled = true;
 			switch (id) {
 				case BUTTONS_ID:
 					if (enabled) {
@@ -426,9 +427,9 @@ void can::init() {
 	write_id(*spi, MCP_RXM1SIDH, 0x3ff);
 
 	ESP_LOGI(CAN_TAG, "Init filter");
-	write_id(*spi, MCP_RXF0SIDH, RADIO_ID);
-	write_id(*spi, MCP_RXF1SIDH, VOLUME_ID);
-	write_id(*spi, MCP_RXF2SIDH, BUTTONS_ID);
+	write_id(*spi, MCP_RXF0SIDH, BUTTONS_ID);
+	/* write_id(*spi, MCP_RXF1SIDH, VOLUME_ID); */
+	/* write_id(*spi, MCP_RXF2SIDH, RADIO_ID); */
 
 	ESP_LOGI(CAN_TAG, "Enter normal mode");
 	set_CANCTRL_mode(*spi, MODE_NORMAL);
