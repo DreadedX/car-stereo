@@ -9,6 +9,8 @@ namespace avrcp {
 	void play_pause();
 	void forward();
 	void backward();
+	void seek_forward();
+	void seek_backward();
 
 	void set_volume(uint8_t volume);
 }

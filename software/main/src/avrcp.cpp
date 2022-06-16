@@ -177,6 +177,18 @@ void avrcp::backward() {
 	send_cmd(ESP_AVRC_PT_CMD_BACKWARD);
 }
 
+void avrcp::seek_forward() {
+	ESP_LOGI(AVRCP_TAG, "Seek forward");
+
+	send_cmd(ESP_AVRC_PT_CMD_FAST_FORWARD);
+}
+
+void avrcp::seek_backward() {
+	ESP_LOGI(AVRCP_TAG, "Seek backward");
+
+	send_cmd(ESP_AVRC_PT_CMD_REWIND);
+}
+
 void avrcp::set_volume(uint8_t v) {
 	// Make sure the volume is actually changed
 	if (v == volume) {

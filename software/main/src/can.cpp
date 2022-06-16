@@ -336,6 +336,19 @@ static void can_task(void* params) {
 
 						static MultiPurposeButton button_backward(nullptr, avrcp::backward);
 						button_backward.update(buttons.backward);
+
+						static uint8_t scroll = 0;
+						if (scroll != buttons.scroll) {
+							int8_t diff = buttons.scroll - scroll;
+
+							if (diff < 0) {
+								avrcp::seek_backward();
+							} else {
+								avrcp::seek_forward();
+							}
+
+							scroll = buttons.scroll;
+						}
 					}
 					break;
 
