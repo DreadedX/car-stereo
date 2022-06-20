@@ -12,6 +12,7 @@
 #include "avrcp.h"
 #include "a2dp.h"
 #include "can.h"
+#include "twai.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -22,11 +23,12 @@ void task(void*) {
 	for (;;) {
 		vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-		static uint8_t volume = 0;
-		volume = (volume + 1) % 31;
-
-		ESP_LOGI(APP_TAG, "Emulation radio with volume: %i", volume);
-		avrcp::set_volume(ceil(volume * 4.2f));
+		avrcp::seek_forward();
+		avrcp::seek_forward();
+		avrcp::seek_forward();
+		avrcp::seek_forward();
+		avrcp::seek_forward();
+		avrcp::seek_forward();
 	}
 }
 
@@ -45,6 +47,7 @@ extern "C" void app_main() {
 
 	/* xTaskCreate(task, "Task", 2048, nullptr, 0, nullptr); */
 
-	can::init();
+	/* can::init(); */
+	twai::init();
 }
 
