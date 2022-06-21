@@ -50,4 +50,3 @@ extern "C" void app_main() {
 	/* can::init(); */
 	twai::init();
 }
-
