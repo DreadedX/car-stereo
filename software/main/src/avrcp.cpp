@@ -155,13 +155,21 @@ static void send_cmd(esp_avrc_pt_cmd_t cmd) {
 	ESP_ERROR_CHECK(ret);
 }
 
+void avrcp::play() {
+	ESP_LOGI(AVRCP_TAG, "Playing");
+	send_cmd(ESP_AVRC_PT_CMD_PLAY);
+}
+
+void avrcp::pause() {
+	ESP_LOGI(AVRCP_TAG, "Pausing");
+	send_cmd(ESP_AVRC_PT_CMD_PAUSE);
+}
+
 void avrcp::play_pause() {
 	if (is_playing()) {
-		ESP_LOGI(AVRCP_TAG, "Pausing");
-		send_cmd(ESP_AVRC_PT_CMD_PAUSE);
+		pause();
 	} else {
-		ESP_LOGI(AVRCP_TAG, "Playing");
-		send_cmd(ESP_AVRC_PT_CMD_PLAY);
+		play();
 	}
 }
 

@@ -25,11 +25,10 @@ static void listen(void*) {
 			ESP_LOGI(TWAI_TAG, "Message is in Extended Format");
 		}
 
-		static bool enabled = true;
+		static bool enabled = false;
 		switch (message.identifier) {
 			case BUTTONS_ID:
 				if (enabled) {
-
 					can::Buttons buttons = can::convert<can::Buttons>(message.data, message.data_length_code);
 
 					static MultiPurposeButton button_forward(avrcp::play_pause, avrcp::forward);
@@ -37,6 +36,16 @@ static void listen(void*) {
 
 					static MultiPurposeButton button_backward(nullptr, avrcp::backward);
 					button_backward.update(buttons.backward);
+
+					// @TODO Figure out what we want to do with the scroll button
+					// Fast foward only appears to work in jellyfin and only skips 5 seconds
+					// The scrolling also seems very unresponsive
+					// So yeah...
+					static uint8_t scroll = 0;
+					if (scroll != buttons.scroll) {
+						scroll = buttons.scroll;
+						ESP_LOGI(TWAI_TAG, "Scroll changed: 0x%X", buttons.scroll);
+					}
 				}
 				break;
 
@@ -50,7 +59,33 @@ static void listen(void*) {
 			case RADIO_ID:
 				{
 					can::Radio radio = can::convert<can::Radio>(message.data, message.data_length_code);
+					bool previous = enabled;
 					enabled = (radio.source == can::Source::AUX2) && (radio.enabled);
+
+					// If we just changed into the disabled state => pause
+					if (!enabled && previous) {
+						avrcp::pause();
+					}
+
+					static bool muted = false;
+					static bool was_playing = false;
+					// If we just muted => pause
+					if (!muted && radio.muted) {
+						was_playing = avrcp::is_playing();
+						avrcp::pause();
+					}
+
+					// If we just unmuted and were playing before muting => unpause
+					if (muted && !radio.muted && was_playing) {
+						avrcp::play();
+					}
+					muted = radio.muted;
+
+					// @TODO Figure out how all of this works when we receive a call
+					// If I remember correctly when receiving a call, the radio muted the input
+					// In which case it should auto resume playing after finishing the call
+					// However the phone probably automatically pauses and unpauses the music during a call.
+					// So we probably don't really have to do anything here.
 				}
 				break;
 
@@ -83,5 +118,5 @@ void twai::init() {
 		ESP_LOGI(TWAI_TAG, "Failed to start driver");
 	}
 
-	xTaskCreate(listen, "TWAI Listener", 2048, nullptr, 0, nullptr);
+	xTaskCreatePinnedToCore(listen, "TWAI Listener", 2048, nullptr, 0, nullptr, 1);
 }

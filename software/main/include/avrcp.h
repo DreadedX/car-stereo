@@ -6,6 +6,8 @@ namespace avrcp {
 	void init();
 	bool is_playing();
 
+	void play();
+	void pause();
 	void play_pause();
 	void forward();
 	void backward();
