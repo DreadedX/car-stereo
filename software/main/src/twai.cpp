@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cstring>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -12,6 +13,39 @@
 #include "helper.h"
 
 #define TWAI_TAG "APP_TWAI"
+
+// @TODO Use this proof of concept to sync volume from phone to radio
+static void send_test() {
+	ESP_LOGI(TWAI_TAG, "Send test!");
+
+	can::Buttons buttons;
+	memset(&buttons, 0, sizeof(buttons));
+
+	for (int i = 0; i < 6; i++) {
+		buttons.volume_up = !(i % 2);
+
+		twai_message_t message;
+		memset(&message, 0, sizeof(message));
+		message.identifier = BUTTONS_ID;
+		message.data_length_code = 3;
+		message.data[0] = ((uint8_t*)&buttons)[0];
+		message.data[1] = ((uint8_t*)&buttons)[1];
+		message.data[2] = ((uint8_t*)&buttons)[2];
+
+		for (int i = 0; i < message.data_length_code; i++) {
+			ESP_LOGI(TWAI_TAG, "%i: 0x%X", i, message.data[i]);
+		}
+
+		if (twai_transmit(&message, pdMS_TO_TICKS(1000)) == ESP_OK) {
+			ESP_LOGI(TWAI_TAG, "Message queued for transmission");
+		} else {
+			ESP_LOGI(TWAI_TAG, "Failed tp queue message for transmission");
+		}
+
+		// This is a good delay for this
+		vTaskDelay(pdMS_TO_TICKS(50));
+	}
+}
 
 static void listen(void*) {
 	for (;;) {
@@ -34,7 +68,7 @@ static void listen(void*) {
 					static MultiPurposeButton button_forward(avrcp::play_pause, avrcp::forward);
 					button_forward.update(buttons.forward);
 
-					static MultiPurposeButton button_backward(nullptr, avrcp::backward);
+					static MultiPurposeButton button_backward(send_test, avrcp::backward);
 					button_backward.update(buttons.backward);
 
 					// @TODO Figure out what we want to do with the scroll button
@@ -97,7 +131,7 @@ static void listen(void*) {
 }
 
 void twai::init() {
-	twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_5, GPIO_NUM_19, TWAI_MODE_LISTEN_ONLY);
+	twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_5, GPIO_NUM_19, TWAI_MODE_NORMAL);
 	twai_timing_config_t t_config = TWAI_TIMING_CONFIG_125KBITS();
 	twai_filter_config_t f_config = {
 		.acceptance_code = (0b100100101 << 5) + (0b1000011111 << 21),
