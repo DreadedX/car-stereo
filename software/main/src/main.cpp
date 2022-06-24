@@ -11,7 +11,6 @@
 #include "bluetooth.h"
 #include "avrcp.h"
 #include "a2dp.h"
-#include "can.h"
 #include "twai.h"
 
 #include "freertos/FreeRTOS.h"
