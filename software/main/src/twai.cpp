@@ -10,6 +10,7 @@
 #include "twai.h"
 #include "avrcp.h"
 #include "can_data.h"
+#include "volume.h"
 #include "helper.h"
 
 #define TWAI_TAG "APP_TWAI"
@@ -44,6 +45,40 @@ static void send_test() {
 
 		// This is a good delay for this
 		vTaskDelay(pdMS_TO_TICKS(50));
+	}
+}
+
+// @TODO Make sure that the other buttons are set to match the current state
+// That way way the scroll wheel and long pressing will not have unintented effects
+void twai::change_volume(bool up) {
+	can::Buttons buttons;
+	memset(&buttons, 0, sizeof(buttons));
+
+	if (up) {
+		buttons.volume_up = true;
+	} else {
+		buttons.volume_down = true;
+	}
+
+
+	twai_message_t message;
+	memset(&message, 0, sizeof(message));
+
+	message.identifier = BUTTONS_ID;
+	message.data_length_code = 3;
+	message.data[0] = ((uint8_t*)&buttons)[0];
+	message.data[1] = ((uint8_t*)&buttons)[1];
+	message.data[2] = ((uint8_t*)&buttons)[2];
+
+
+	for (int i = 0; i < message.data_length_code; i++) {
+		ESP_LOGI(TWAI_TAG, "%i: 0x%X", i, message.data[i]);
+	}
+
+	if (twai_transmit(&message, pdMS_TO_TICKS(1000)) == ESP_OK) {
+		ESP_LOGI(TWAI_TAG, "Message queued for transmission");
+	} else {
+		ESP_LOGI(TWAI_TAG, "Failed tp queue message for transmission");
 	}
 }
 
@@ -86,7 +121,10 @@ static void listen(void*) {
 			case VOLUME_ID:
 				if (enabled) {
 					can::Volume volume = can::convert<can::Volume>(message.data, message.data_length_code);
-					avrcp::set_volume(ceil(volume.volume * 4.2f));
+					// Only update the volume if the volume has actually changed
+					if (!volume._1) {
+						volume_controller::set_from_radio(volume.volume);
+					}
 				}
 				break;
 

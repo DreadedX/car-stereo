@@ -2,6 +2,7 @@
 #include "esp_avrc_api.h"
 
 #include "avrcp.h"
+#include "volume.h"
 #include "helper.h"
 
 #define AVRCP_TAG "APP_AVRCP"
@@ -9,8 +10,6 @@
 static esp_avrc_rn_evt_cap_mask_t s_avrc_peer_rn_cap;
 static esp_avrc_playback_stat_t playback_status = ESP_AVRC_PLAYBACK_STOPPED;
 
-static uint8_t volume = 127;
-static _lock_t volume_lock;
 static bool volume_notify = false;
 
 static void playback_changed() {
@@ -31,13 +30,6 @@ static void notify_handler(uint8_t event_id, esp_avrc_rn_param_t *event_paramete
 			ESP_LOGI(AVRCP_TAG, "unhandled event: %d", event_id);
 			break;
 	}
-}
-
-static void set_volume_value(uint8_t v) {
-	ESP_LOGI(AVRCP_TAG, "Setting internal volume value to %i", v);
-	_lock_acquire(&volume_lock);
-	volume = v;
-	_lock_release(&volume_lock);
 }
 
 static void rc_ct_callback(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
@@ -81,8 +73,7 @@ static void rc_tg_callback(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t*
 	switch (event) {
 		case ESP_AVRC_TG_SET_ABSOLUTE_VOLUME_CMD_EVT:
 			ESP_LOGI(AVRCP_TAG, "AVRC set absolute volume: %d%%", (int)param->set_abs_vol.volume * 100/ 0x7f);
-			// The phone want to change the volume
-			set_volume_value(param->set_abs_vol.volume);
+			volume_controller::set_from_remote(param->set_abs_vol.volume);
 			break;
 
 		case ESP_AVRC_TG_REGISTER_NOTIFICATION_EVT:
@@ -97,7 +88,7 @@ static void rc_tg_callback(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t*
 				// This will require some sort of CAN bus access
 				volume_notify = true;
 				esp_avrc_rn_param_t rn_param;
-				rn_param.volume = volume;
+				rn_param.volume = volume_controller::current();
 				esp_avrc_tg_send_rn_rsp(ESP_AVRC_RN_VOLUME_CHANGE, ESP_AVRC_RN_RSP_INTERIM, &rn_param);
 			} else if (param->reg_ntf.event_id == ESP_AVRC_RN_PLAY_POS_CHANGED) {
 				ESP_LOGI(AVRCP_TAG, "We can change the play position?");
@@ -110,6 +101,14 @@ static void rc_tg_callback(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t*
 			ESP_LOGE(AVRCP_TAG, "%s unhandled event %d", __func__, event);
 			break;
 	}
+}
+
+static void send_cmd(esp_avrc_pt_cmd_t cmd) {
+	esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, cmd, ESP_AVRC_PT_CMD_STATE_PRESSED);
+	ESP_ERROR_CHECK(ret);
+
+	ret = esp_avrc_ct_send_passthrough_cmd(1, cmd, ESP_AVRC_PT_CMD_STATE_RELEASED);
+	ESP_ERROR_CHECK(ret);
 }
 
 void avrcp::init() {
@@ -145,14 +144,6 @@ void avrcp::init() {
 
 bool avrcp::is_playing() {
 	return playback_status == ESP_AVRC_PLAYBACK_PLAYING;
-}
-
-static void send_cmd(esp_avrc_pt_cmd_t cmd) {
-	esp_err_t ret = esp_avrc_ct_send_passthrough_cmd(0, cmd, ESP_AVRC_PT_CMD_STATE_PRESSED);
-	ESP_ERROR_CHECK(ret);
-
-	ret = esp_avrc_ct_send_passthrough_cmd(1, cmd, ESP_AVRC_PT_CMD_STATE_RELEASED);
-	ESP_ERROR_CHECK(ret);
 }
 
 void avrcp::play() {
@@ -198,18 +189,10 @@ void avrcp::seek_backward() {
 }
 
 void avrcp::set_volume(uint8_t v) {
-	// Make sure the volume is actually changed
-	if (v == volume) {
-		return;
-	}
-
-	set_volume_value(v);
-
-	// @TODO What we the device supports remote volume but we can not send it yet?
 	if (volume_notify) {
 		ESP_LOGI(AVRCP_TAG, "Setting remote volume value to %i", v);
 		esp_avrc_rn_param_t rn_param;
-		rn_param.volume = volume;
+		rn_param.volume = v;
 		esp_avrc_tg_send_rn_rsp(ESP_AVRC_RN_VOLUME_CHANGE, ESP_AVRC_RN_RSP_CHANGED, &rn_param);
 		volume_notify = false;
 	}
