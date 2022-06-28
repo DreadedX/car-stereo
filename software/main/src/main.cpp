@@ -12,6 +12,7 @@
 #include "avrcp.h"
 #include "a2dp.h"
 #include "twai.h"
+#include "volume.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -48,4 +49,5 @@ extern "C" void app_main() {
 
 	/* can::init(); */
 	twai::init();
+	volume_controller::init();
 }

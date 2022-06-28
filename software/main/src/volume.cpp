@@ -17,7 +17,7 @@ static uint8_t remote_volume;
 // 0-30
 static uint8_t radio_volume;
 
-static bool synced = false;
+static bool synced = true;
 static _lock_t lock;
 
 void volume_controller::set_from_radio(int v) {
@@ -79,7 +79,7 @@ static void correct_volume(void*) {
 			}
 		}
 
-		vTaskDelay(pdMS_TO_TICKS(100));
+		vTaskDelay(pdMS_TO_TICKS(30));
 	}
 }
 

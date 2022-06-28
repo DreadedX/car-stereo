@@ -60,7 +60,6 @@ void twai::change_volume(bool up) {
 		buttons.volume_down = true;
 	}
 
-
 	twai_message_t message;
 	memset(&message, 0, sizeof(message));
 
@@ -70,6 +69,22 @@ void twai::change_volume(bool up) {
 	message.data[1] = ((uint8_t*)&buttons)[1];
 	message.data[2] = ((uint8_t*)&buttons)[2];
 
+
+	for (int i = 0; i < message.data_length_code; i++) {
+		ESP_LOGI(TWAI_TAG, "%i: 0x%X", i, message.data[i]);
+	}
+
+	if (twai_transmit(&message, pdMS_TO_TICKS(1000)) == ESP_OK) {
+		ESP_LOGI(TWAI_TAG, "Message queued for transmission");
+	} else {
+		ESP_LOGI(TWAI_TAG, "Failed tp queue message for transmission");
+	}
+
+	vTaskDelay(pdMS_TO_TICKS(30));
+
+	buttons.volume_up = false;
+	buttons.volume_down = false;
+	message.data[0] = ((uint8_t*)&buttons)[0];
 
 	for (int i = 0; i < message.data_length_code; i++) {
 		ESP_LOGI(TWAI_TAG, "%i: 0x%X", i, message.data[i]);
