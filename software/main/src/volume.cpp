@@ -23,13 +23,13 @@ static _lock_t lock;
 // Helper functions for converting between internal volume level and radio volume level
 // Since most of the time we are going to be around a radio volume of 15 the scaling is non-linear
 static uint8_t to_radio_volume(uint8_t volume) {
-	/* return floor(volume / 4.2f); */
-	return ceil((30.f / pow(127.f, 2)) * pow(volume, 2));
+	return floor(volume / 4.2f);
+	/* return ceil((30.f / pow(127.f, 2)) * pow(volume, 2)); */
 }
 
 static uint8_t from_radio_volume(uint8_t volume) {
-	/* return ceil(volume * 4.2f); */
-	return floor((127.f / sqrt(30.f)) * sqrt(volume));
+	return ceil(volume * 4.2f);
+	/* return floor((127.f / sqrt(30.f)) * sqrt(volume)); */
 }
 
 void volume_controller::cancel_sync() {
@@ -37,7 +37,7 @@ void volume_controller::cancel_sync() {
 }
 
 void volume_controller::set_from_radio(int v) {
-	ESP_LOGI(VOLUME_TAG, "Volume on radio updated: %i (0-30)", v);
+	/* ESP_LOGI(VOLUME_TAG, "Volume on radio updated: %i (0-30)", v); */
 	// Update the radio volume
 	_lock_acquire(&lock);
 	radio_volume = v;
