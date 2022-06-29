@@ -15,23 +15,31 @@
 
 #define TWAI_TAG "APP_TWAI"
 
-// @TODO Use this proof of concept to sync volume from phone to radio
-static void send_test() {
-	ESP_LOGI(TWAI_TAG, "Send test!");
+static bool enabled = false;
 
-	can::Buttons buttons;
-	memset(&buttons, 0, sizeof(buttons));
+// @TODO Make sure that the other buttons are set to match the current state
+// That way way the scroll wheel and long pressing will not have unintented effects
+void twai::change_volume(bool up) {
+	// Make sure we only change the volume if we are enabled
+	if (enabled) {
+		can::Buttons buttons;
+		memset(&buttons, 0, sizeof(buttons));
 
-	for (int i = 0; i < 6; i++) {
-		buttons.volume_up = !(i % 2);
+		if (up) {
+			buttons.volume_up = true;
+		} else {
+			buttons.volume_down = true;
+		}
 
 		twai_message_t message;
 		memset(&message, 0, sizeof(message));
+
 		message.identifier = BUTTONS_ID;
 		message.data_length_code = 3;
 		message.data[0] = ((uint8_t*)&buttons)[0];
 		message.data[1] = ((uint8_t*)&buttons)[1];
 		message.data[2] = ((uint8_t*)&buttons)[2];
+
 
 		for (int i = 0; i < message.data_length_code; i++) {
 			ESP_LOGI(TWAI_TAG, "%i: 0x%X", i, message.data[i]);
@@ -43,57 +51,21 @@ static void send_test() {
 			ESP_LOGI(TWAI_TAG, "Failed tp queue message for transmission");
 		}
 
-		// This is a good delay for this
 		vTaskDelay(pdMS_TO_TICKS(50));
-	}
-}
 
-// @TODO Make sure that the other buttons are set to match the current state
-// That way way the scroll wheel and long pressing will not have unintented effects
-void twai::change_volume(bool up) {
-	can::Buttons buttons;
-	memset(&buttons, 0, sizeof(buttons));
+		buttons.volume_up = false;
+		buttons.volume_down = false;
+		message.data[0] = ((uint8_t*)&buttons)[0];
 
-	if (up) {
-		buttons.volume_up = true;
-	} else {
-		buttons.volume_down = true;
-	}
+		for (int i = 0; i < message.data_length_code; i++) {
+			ESP_LOGI(TWAI_TAG, "%i: 0x%X", i, message.data[i]);
+		}
 
-	twai_message_t message;
-	memset(&message, 0, sizeof(message));
-
-	message.identifier = BUTTONS_ID;
-	message.data_length_code = 3;
-	message.data[0] = ((uint8_t*)&buttons)[0];
-	message.data[1] = ((uint8_t*)&buttons)[1];
-	message.data[2] = ((uint8_t*)&buttons)[2];
-
-
-	for (int i = 0; i < message.data_length_code; i++) {
-		ESP_LOGI(TWAI_TAG, "%i: 0x%X", i, message.data[i]);
-	}
-
-	if (twai_transmit(&message, pdMS_TO_TICKS(1000)) == ESP_OK) {
-		ESP_LOGI(TWAI_TAG, "Message queued for transmission");
-	} else {
-		ESP_LOGI(TWAI_TAG, "Failed tp queue message for transmission");
-	}
-
-	vTaskDelay(pdMS_TO_TICKS(30));
-
-	buttons.volume_up = false;
-	buttons.volume_down = false;
-	message.data[0] = ((uint8_t*)&buttons)[0];
-
-	for (int i = 0; i < message.data_length_code; i++) {
-		ESP_LOGI(TWAI_TAG, "%i: 0x%X", i, message.data[i]);
-	}
-
-	if (twai_transmit(&message, pdMS_TO_TICKS(1000)) == ESP_OK) {
-		ESP_LOGI(TWAI_TAG, "Message queued for transmission");
-	} else {
-		ESP_LOGI(TWAI_TAG, "Failed tp queue message for transmission");
+		if (twai_transmit(&message, pdMS_TO_TICKS(1000)) == ESP_OK) {
+			ESP_LOGI(TWAI_TAG, "Message queued for transmission");
+		} else {
+			ESP_LOGI(TWAI_TAG, "Failed tp queue message for transmission");
+		}
 	}
 }
 
@@ -109,7 +81,6 @@ static void listen(void*) {
 			ESP_LOGI(TWAI_TAG, "Message is in Extended Format");
 		}
 
-		static bool enabled = false;
 		switch (message.identifier) {
 			case BUTTONS_ID:
 				if (enabled) {
@@ -118,7 +89,7 @@ static void listen(void*) {
 					static MultiPurposeButton button_forward(avrcp::play_pause, avrcp::forward);
 					button_forward.update(buttons.forward);
 
-					static MultiPurposeButton button_backward(send_test, avrcp::backward);
+					static MultiPurposeButton button_backward(nullptr, avrcp::backward);
 					button_backward.update(buttons.backward);
 
 					// @TODO Figure out what we want to do with the scroll button
@@ -130,6 +101,11 @@ static void listen(void*) {
 						scroll = buttons.scroll;
 						ESP_LOGI(TWAI_TAG, "Scroll changed: 0x%X", buttons.scroll);
 					}
+
+					// If the volume is syncing make sure we can cancel it if we press the volume buttons in the car
+					if (buttons.volume_up || buttons.volume_down) {
+						volume_controller::cancel_sync();
+					}
 				}
 				break;
 
@@ -137,9 +113,7 @@ static void listen(void*) {
 				if (enabled) {
 					can::Volume volume = can::convert<can::Volume>(message.data, message.data_length_code);
 					// Only update the volume if the volume has actually changed
-					if (!volume._1) {
-						volume_controller::set_from_radio(volume.volume);
-					}
+					volume_controller::set_from_radio(volume.volume);
 				}
 				break;
 

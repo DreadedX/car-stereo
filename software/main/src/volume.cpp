@@ -20,6 +20,22 @@ static uint8_t radio_volume;
 static bool synced = true;
 static _lock_t lock;
 
+// Helper functions for converting between internal volume level and radio volume level
+// Since most of the time we are going to be around a radio volume of 15 the scaling is non-linear
+static uint8_t to_radio_volume(uint8_t volume) {
+	/* return floor(volume / 4.2f); */
+	return ceil((30.f / pow(127.f, 2)) * pow(volume, 2));
+}
+
+static uint8_t from_radio_volume(uint8_t volume) {
+	/* return ceil(volume * 4.2f); */
+	return floor((127.f / sqrt(30.f)) * sqrt(volume));
+}
+
+void volume_controller::cancel_sync() {
+	synced = true;
+}
+
 void volume_controller::set_from_radio(int v) {
 	ESP_LOGI(VOLUME_TAG, "Volume on radio updated: %i (0-30)", v);
 	// Update the radio volume
@@ -35,7 +51,11 @@ void volume_controller::set_from_radio(int v) {
 	}
 
 	// Convert the 0 - 30 range of the radio to 0 - 127
-	uint8_t full_range = ceil(v * 4.2f);
+	uint8_t full_range = from_radio_volume(v);
+	if (full_range == volume) {
+		return;
+	}
+
 	ESP_LOGI(VOLUME_TAG, "Updating internal and remote to: %i (0-127)", full_range);
 
 	// Update the remote volume
@@ -66,7 +86,7 @@ uint8_t volume_controller::current() {
 static void correct_volume(void*) {
 	for (;;) {
 		if (!synced) {
-			uint8_t target = floor(volume / 4.2f);
+			uint8_t target = to_radio_volume(volume);
 
 			if (radio_volume == target) {
 				ESP_LOGI(VOLUME_TAG, "SYNCED!");
@@ -79,7 +99,7 @@ static void correct_volume(void*) {
 			}
 		}
 
-		vTaskDelay(pdMS_TO_TICKS(30));
+		vTaskDelay(pdMS_TO_TICKS(50));
 	}
 }
 
