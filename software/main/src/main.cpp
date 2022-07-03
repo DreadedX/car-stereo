@@ -19,19 +19,6 @@
 
 #define APP_TAG "APP"
 
-void task(void*) {
-	for (;;) {
-		vTaskDelay(5000 / portTICK_PERIOD_MS);
-
-		avrcp::seek_forward();
-		avrcp::seek_forward();
-		avrcp::seek_forward();
-		avrcp::seek_forward();
-		avrcp::seek_forward();
-		avrcp::seek_forward();
-	}
-}
-
 extern "C" void app_main() {
 	ESP_LOGI(APP_TAG, "Starting Car Stereo");
 	ESP_LOGI(APP_TAG, "Available Heap: %u", esp_get_free_heap_size());
@@ -45,9 +32,6 @@ extern "C" void app_main() {
 
 	a2dp::connect_to_last();
 
-	/* xTaskCreate(task, "Task", 2048, nullptr, 0, nullptr); */
-
-	/* can::init(); */
 	twai::init();
 	volume_controller::init();
 }

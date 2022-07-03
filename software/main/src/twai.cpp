@@ -179,5 +179,5 @@ void twai::init() {
 		ESP_LOGI(TWAI_TAG, "Failed to start driver");
 	}
 
-	xTaskCreatePinnedToCore(listen, "TWAI Listener", 2048, nullptr, 0, nullptr, 1);
+	xTaskCreatePinnedToCore(listen, "TWAI Listener", 2048, nullptr, 0, nullptr, 0);
 }

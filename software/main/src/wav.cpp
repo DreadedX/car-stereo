@@ -58,7 +58,7 @@ void wav::play(const uint8_t* start, const uint8_t* end) {
 	param->data = start;
 	param->len = len;
 
-	if (xTaskCreate(task, "PlayWav", 2048, param, configMAX_PRIORITIES - 3, nullptr) != pdPASS) {
+	if (xTaskCreatePinnedToCore(task, "PlayWav", 2048, param, configMAX_PRIORITIES - 3, nullptr, 0) != pdPASS) {
 		ESP_LOGE(WAV_TAG, "Failed to create play wav task");
 	}
 }

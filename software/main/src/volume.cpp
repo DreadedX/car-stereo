@@ -89,12 +89,12 @@ static void correct_volume(void*) {
 			uint8_t target = to_radio_volume(volume);
 
 			if (radio_volume == target) {
-				ESP_LOGI(VOLUME_TAG, "SYNCED!");
+				ESP_LOGI(VOLUME_TAG, "Synced");
 				_lock_acquire(&lock);
 				synced = true;
 				_lock_release(&lock);
 			} else {
-				ESP_LOGI(VOLUME_TAG, "Adjusting volume: %i", radio_volume < target);
+				/* ESP_LOGI(VOLUME_TAG, "Adjusting volume: %i", radio_volume < target); */
 				twai::change_volume(radio_volume < target);
 			}
 		}
@@ -104,5 +104,5 @@ static void correct_volume(void*) {
 }
 
 void volume_controller::init() {
-	xTaskCreatePinnedToCore(correct_volume, "Correct volume", 2048, nullptr, 0, nullptr, 1);
+	xTaskCreatePinnedToCore(correct_volume, "Correct volume", 2048, nullptr, 0, nullptr, 0);
 }
