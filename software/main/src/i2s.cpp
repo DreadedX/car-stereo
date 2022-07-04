@@ -1,9 +1,39 @@
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/ringbuf.h"
 #include "esp_log.h"
 #include "driver/i2s.h"
 
 #include "i2s.h"
 
 #define I2S_TAG "APP_I2S"
+
+#define RINGBUF_SIZE (16 * 1024)
+#define AUDIO_SAMPLE_SIZE (16 * 2 / 8) // 16bit, 2ch, 8bit/byte
+
+static RingbufHandle_t ringbuffer = nullptr;
+
+static void task(void*) {
+	ESP_LOGI(I2S_TAG, "Starting i2s task");
+	for (;;) {
+		size_t length = 0;
+		uint8_t* data = (uint8_t*)xRingbufferReceive(ringbuffer, &length, portMAX_DELAY);
+
+		// @TODO Swap channels
+		if (length) {
+			size_t bytes_written;
+			if (i2s_write(I2S_PORT, data, length, &bytes_written, portMAX_DELAY) != ESP_OK) {
+				ESP_LOGE(I2S_TAG, "i2s_write has failed");
+			}
+
+			if (bytes_written < length) {
+				ESP_LOGE(I2S_TAG, "Timeout: not all bytes were written to I2S");
+			}
+
+			vRingbufferReturnItem(ringbuffer, data);
+		}
+	}
+}
 
 void i2s::init() {
 	ESP_LOGI(I2S_TAG, "Initializing i2s");
@@ -41,6 +71,14 @@ void i2s::init() {
 	if (i2s_set_pin(i2s_port, &pin_config) != ESP_OK) {
 		ESP_LOGE(I2S_TAG, "i2s_set_pin failed");
 	}
+
+	ringbuffer = xRingbufferCreate(RINGBUF_SIZE, RINGBUF_TYPE_BYTEBUF);
+	if (!ringbuffer) {
+		ESP_LOGE(I2S_TAG, "Failed to create ringbuffer");
+		return;
+	}
+
+	xTaskCreate(task, "I2S Task", 2048, nullptr, 0, nullptr);
 }
 
 static uint32_t sample_rate = 44100;
@@ -56,4 +94,19 @@ void i2s::set_sample_rate(uint32_t sp) {
 
 uint32_t i2s::get_sample_rate() {
 	return sample_rate;
+}
+
+void i2s::write(const uint8_t* data, size_t length) {
+	UBaseType_t items;
+	vRingbufferGetInfo(ringbuffer, nullptr, nullptr, nullptr, nullptr, &items);
+
+	if (items < RINGBUF_SIZE * 3/8) {
+		xRingbufferSend(ringbuffer, data, AUDIO_SAMPLE_SIZE, portMAX_DELAY);
+	} else if (items > RINGBUF_SIZE * 5/8) {
+		length -= AUDIO_SAMPLE_SIZE;
+	}
+
+	if (!xRingbufferSend(ringbuffer, data, length, portMAX_DELAY)) {
+		ESP_LOGE(I2S_TAG, "Failed to write to ringbuffer");
+	}
 }

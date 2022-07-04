@@ -122,21 +122,22 @@ struct __attribute__((packed)) Frame {
 };
 
 static void audio_data_callback(const uint8_t* data, uint32_t len) {
-	Frame* frame = (Frame*)data;
-	for (int i = 0; i < len/4; i++) {
-		int16_t temp = frame[i].channel1;
-		frame[i].channel1 = frame[i].channel2;
-		frame[i].channel2 = temp;
-	}
+	i2s::write(data, len);
+	/* Frame* frame = (Frame*)data; */
+	/* for (int i = 0; i < len/4; i++) { */
+	/* 	int16_t temp = frame[i].channel1; */
+	/* 	frame[i].channel1 = frame[i].channel2; */
+	/* 	frame[i].channel2 = temp; */
+	/* } */
 
-	size_t bytes_written;
-	if (i2s_write(I2S_PORT, data, len, &bytes_written, portMAX_DELAY) != ESP_OK) {
-		ESP_LOGE(A2DP_TAG, "i2s_write has failed");
-	}
+	/* size_t bytes_written; */
+	/* if (i2s_write(I2S_PORT, data, len, &bytes_written, portMAX_DELAY) != ESP_OK) { */
+	/* 	ESP_LOGE(A2DP_TAG, "i2s_write has failed"); */
+	/* } */
 
-	if (bytes_written < len) {
-		ESP_LOGE(A2DP_TAG, "Timeout: not all bytes were written to I2S");
-	}
+	/* if (bytes_written < len) { */
+	/* 	ESP_LOGE(A2DP_TAG, "Timeout: not all bytes were written to I2S"); */
+	/* } */
 }
 
 void a2dp::init() {

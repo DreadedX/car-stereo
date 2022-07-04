@@ -9,4 +9,6 @@ namespace i2s {
 
 	uint32_t get_sample_rate();
 	void set_sample_rate(uint32_t sample_rate);
+
+	void write(const uint8_t* data, size_t length);
 }
