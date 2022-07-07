@@ -2,10 +2,8 @@
 
 #include "esp_avrc_api.h"
 #include "esp_log.h"
-
 #include "esp_system.h"
 
-#include "freertos/portmacro.h"
 #include "storage.h"
 #include "i2s.h"
 #include "bluetooth.h"
@@ -13,9 +11,6 @@
 #include "a2dp.h"
 #include "twai.h"
 #include "volume.h"
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 
 #define APP_TAG "APP"
 
