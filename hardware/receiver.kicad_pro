@@ -33,9 +33,9 @@
         "other_text_thickness": 0.15,
         "other_text_upright": false,
         "pads": {
-          "drill": 0.762,
-          "height": 1.524,
-          "width": 1.524
+          "drill": 0.0,
+          "height": 1.0,
+          "width": 1.0
         },
         "silk_line_width": 0.15,
         "silk_text_italic": false,
@@ -45,7 +45,7 @@
         "silk_text_upright": false,
         "zones": {
           "45_degree_only": false,
-          "min_clearance": 0.508
+          "min_clearance": 0.254
         }
       },
       "diff_pair_dimensions": [
@@ -55,7 +55,27 @@
           "width": 0.0
         }
       ],
-      "drc_exclusions": [],
+      "drc_exclusions": [
+        "courtyards_overlap|67989501|130065001|9b223a83-d07d-4e38-9541-cec9b45b11c2|a2dce3d7-7a3d-43bd-b17a-ae7b8e2867b2",
+        "silk_over_copper|101777000|105614800|737168eb-2092-41b8-83d5-612795b3e54b|b8d0026f-f717-4736-8756-af3c58081519",
+        "silk_over_copper|110717000|105614800|737168eb-2092-41b8-83d5-612795b3e54b|d6387d53-7506-4d9d-912e-ef7a7de56768",
+        "silk_over_copper|122263000|116881000|ab8bd594-cab8-4ce2-ac8c-bc9ca307b3d8|39b1b941-f916-4d39-821b-7c70ade6a230",
+        "silk_over_copper|122263000|125181000|ab8bd594-cab8-4ce2-ac8c-bc9ca307b3d8|275ac7d7-1285-4c50-a13f-3ed32f039bf0",
+        "silk_over_copper|122263000|134026000|ab8bd594-cab8-4ce2-ac8c-bc9ca307b3d8|a90238c5-ea81-4e91-988c-a6ce37407c09",
+        "silk_over_copper|122263000|142326000|ab8bd594-cab8-4ce2-ac8c-bc9ca307b3d8|9ca66478-dc2e-46f2-b968-bcd60fc77635",
+        "silk_over_copper|50508000|125075000|f41c70af-4474-4fb8-8d50-48af3034a50e|9fc43eb3-88bb-451e-8b39-175e7d923277",
+        "silk_over_copper|50508000|127385000|f41c70af-4474-4fb8-8d50-48af3034a50e|aee91d17-6690-4967-acc4-e026ed89f264",
+        "silk_over_copper|50508000|127885000|f41c70af-4474-4fb8-8d50-48af3034a50e|11605b83-ea1e-4c3e-a90e-8c07ba525376",
+        "silk_over_copper|50508000|129885000|f41c70af-4474-4fb8-8d50-48af3034a50e|1a204c40-b2b6-46ac-a1d0-32a6c2270735",
+        "silk_over_copper|50508000|130385000|f41c70af-4474-4fb8-8d50-48af3034a50e|8e4671dd-3de8-46e6-99ab-c9fbe68cf7b1",
+        "silk_over_copper|50508000|132385000|f41c70af-4474-4fb8-8d50-48af3034a50e|f02e619b-1d2d-40f8-a950-9a8e60079ab0",
+        "silk_over_copper|50508000|132885000|f41c70af-4474-4fb8-8d50-48af3034a50e|d8d06ded-0634-475a-a300-de6e1ed34d68",
+        "silk_over_copper|50508000|134885000|f41c70af-4474-4fb8-8d50-48af3034a50e|13c4d474-55a2-427f-9d5e-f82ebf4b011d",
+        "silk_over_copper|50508000|135385000|f41c70af-4474-4fb8-8d50-48af3034a50e|bb3ee61a-d612-46e1-a899-bd35a434dc7c",
+        "silk_over_copper|50508000|137385000|f41c70af-4474-4fb8-8d50-48af3034a50e|cb73fef0-0ac1-48f2-9412-b734a1a47593",
+        "silk_over_copper|50508000|137885000|f41c70af-4474-4fb8-8d50-48af3034a50e|c927c8ee-b622-460c-8e72-9440aa4058be",
+        "silk_over_copper|50508000|140195000|f41c70af-4474-4fb8-8d50-48af3034a50e|9345d58c-6fd6-413c-9040-ba968b9f997d"
+      ],
       "meta": {
         "version": 2
       },
@@ -112,8 +132,8 @@
         "min_silk_clearance": 0.0,
         "min_through_hole_diameter": 0.3,
         "min_track_width": 0.127,
-        "min_via_annular_width": 0.13,
-        "min_via_diameter": 0.39999999999999997,
+        "min_via_annular_width": 0.09999999999999999,
+        "min_via_diameter": 0.5,
         "solder_mask_clearance": 0.0,
         "solder_mask_min_width": 0.0,
         "use_height_for_length_calcs": true
@@ -364,8 +384,38 @@
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 0.25,
+        "via_diameter": 0.5,
+        "via_drill": 0.3,
+        "wire_width": 6.0
+      },
+      {
+        "bus_width": 12.0,
+        "clearance": 0.2,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "Power",
+        "nets": [
+          "+3V3",
+          "+5V",
+          "/Audio/AVDD",
+          "/Audio/CPVDD",
+          "/CAR",
+          "/V_in",
+          "GND",
+          "Net-(C8-Pad1)",
+          "Net-(C8-Pad2)",
+          "Net-(D4-Pad1)",
+          "Net-(J2-PadS1)"
+        ],
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.6,
         "via_diameter": 0.8,
-        "via_drill": 0.4,
+        "via_drill": 0.6,
         "wire_width": 6.0
       }
     ],
