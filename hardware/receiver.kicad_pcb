@@ -704,7 +704,7 @@
     (fp_circle (center 0 0) (end 1.9 0) (layer "Cmts.User") (width 0.15) (fill none) (tstamp 3c05acaf-ef85-478e-bab4-0eeaac9d6687))
     (fp_circle (center 0 0) (end 2.15 0) (layer "F.CrtYd") (width 0.05) (fill none) (tstamp 47bc48d3-2dc1-45f2-b196-1195fbcbb00f))
     (pad "1" thru_hole circle (at 0 0) (size 3.8 3.8) (drill 2.2) (layers *.Cu *.Mask)
-      (net 2 "GND") (pinfunction "1") (pintype "input") (tstamp 577c2f37-eec8-4764-a1a8-952c01b550bc))
+      (net 2 "GND") (pinfunction "1") (pintype "input") (zone_connect 2) (tstamp 577c2f37-eec8-4764-a1a8-952c01b550bc))
   )
 
   (footprint "Package_TO_SOT_SMD:SOT-223-3_TabPin2" (layer "F.Cu")
@@ -910,7 +910,7 @@
     (fp_circle (center 0 0) (end 1.9 0) (layer "Cmts.User") (width 0.15) (fill none) (tstamp e7e5bcec-1814-49ed-9d36-f095aeda1e99))
     (fp_circle (center 0 0) (end 2.15 0) (layer "F.CrtYd") (width 0.05) (fill none) (tstamp 964e807c-effc-430b-aff3-8abbf2a8fe17))
     (pad "1" thru_hole circle (at 0 0) (size 3.8 3.8) (drill 2.2) (layers *.Cu *.Mask)
-      (net 2 "GND") (pinfunction "1") (pintype "input") (tstamp 3c722e15-d7d0-43d1-916e-dd5841afb2ab))
+      (net 2 "GND") (pinfunction "1") (pintype "input") (zone_connect 2) (tstamp 3c722e15-d7d0-43d1-916e-dd5841afb2ab))
   )
 
   (footprint "Capacitor_SMD:C_0402_1005Metric" (layer "F.Cu")
@@ -1066,7 +1066,7 @@
     (fp_circle (center 0 0) (end 1.9 0) (layer "Cmts.User") (width 0.15) (fill none) (tstamp 70640170-31c6-4629-bf5b-319fa5a0663d))
     (fp_circle (center 0 0) (end 2.15 0) (layer "F.CrtYd") (width 0.05) (fill none) (tstamp 04217cb3-28c6-4a57-bf5a-6074e9e7f40c))
     (pad "1" thru_hole circle (at 0 0) (size 3.8 3.8) (drill 2.2) (layers *.Cu *.Mask)
-      (net 2 "GND") (pinfunction "1") (pintype "input") (tstamp 6b50614c-fcb9-44ef-8572-f8ebc4da43c1))
+      (net 2 "GND") (pinfunction "1") (pintype "input") (zone_connect 2) (tstamp 6b50614c-fcb9-44ef-8572-f8ebc4da43c1))
   )
 
   (footprint "Resistor_SMD:R_0402_1005Metric" (layer "F.Cu")
@@ -4023,7 +4023,7 @@
     (fp_circle (center 0 0) (end 1.9 0) (layer "Cmts.User") (width 0.15) (fill none) (tstamp f6bfa6a4-aff8-4071-833d-c7569bba0042))
     (fp_circle (center 0 0) (end 2.15 0) (layer "F.CrtYd") (width 0.05) (fill none) (tstamp 01f3447c-6023-477d-ad24-09363adfa9f0))
     (pad "1" thru_hole circle (at 0 0) (size 3.8 3.8) (drill 2.2) (layers *.Cu *.Mask)
-      (net 2 "GND") (pinfunction "1") (pintype "input") (tstamp c9e150a8-a150-49af-b92d-486155eee042))
+      (net 2 "GND") (pinfunction "1") (pintype "input") (zone_connect 2) (tstamp c9e150a8-a150-49af-b92d-486155eee042))
   )
 
   (footprint "Capacitor_SMD:C_0402_1005Metric" (layer "F.Cu")
