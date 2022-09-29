@@ -5,6 +5,7 @@
 #include "driver/i2s.h"
 
 #include "i2s.h"
+#include "config.h"
 
 #define I2S_TAG "APP_I2S"
 
@@ -62,9 +63,9 @@ void i2s::init() {
 
 	i2s_pin_config_t pin_config = {
 		.mck_io_num = 0,
-		.bck_io_num = 26,
-		.ws_io_num = 25,
-		.data_out_num = 33,
+		.bck_io_num = I2S_PIN_BCK,
+		.ws_io_num = I2S_PIN_WS,
+		.data_out_num = I2S_PIN_DATA,
 		.data_in_num = I2S_PIN_NO_CHANGE,
 	};
 

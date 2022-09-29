@@ -2,7 +2,6 @@
 
 #include <cstdint>
 
-#define WAV_PLAY_HELPER(str) #str
 #define WAV_PLAY(NAME) {\
 	extern const uint8_t _binary_ ## NAME ## _wav_start[]; \
 	extern const uint8_t _binary_ ## NAME ## _wav_end[]; \

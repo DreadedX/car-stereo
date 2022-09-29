@@ -8,6 +8,7 @@
 #include "hal/twai_types.h"
 
 #include "twai.h"
+#include "config.h"
 #include "avrcp.h"
 #include "can_data.h"
 #include "volume.h"
@@ -158,7 +159,7 @@ static void listen(void*) {
 }
 
 void twai::init() {
-	twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_5, GPIO_NUM_19, TWAI_MODE_NORMAL);
+	twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(TWAI_PIN_CTX, TWAI_PIN_CRX, TWAI_MODE_NORMAL);
 	twai_timing_config_t t_config = TWAI_TIMING_CONFIG_125KBITS();
 	twai_filter_config_t f_config = {
 		.acceptance_code = (0b100100101 << 5) + (0b1000011111 << 21),
