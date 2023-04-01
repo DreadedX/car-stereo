@@ -10,6 +10,7 @@
 	#define I2S_PIN_DATA GPIO_NUM_33
 	#define TWAI_PIN_CTX GPIO_NUM_5
 	#define TWAI_PIN_CRX GPIO_NUM_19
+	#define LED_PIN_BLUETOOTH GPIO_NUM_2
 #else
 	#pragma message ( "Building for the production" )
 	#define I2S_PIN_BCK GPIO_NUM_5
@@ -17,5 +18,6 @@
 	#define I2S_PIN_DATA GPIO_NUM_17
 	#define TWAI_PIN_CTX GPIO_NUM_32
 	#define TWAI_PIN_CRX GPIO_NUM_35
+	#define LED_PIN_BLUETOOTH GPIO_NUM_26
 #endif
 

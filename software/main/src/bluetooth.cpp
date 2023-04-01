@@ -9,6 +9,7 @@
 #include "esp_spp_api.h"
 
 #include "bluetooth.h"
+#include "leds.h"
 
 #include "helper.h"
 #include <cstring>
@@ -123,7 +124,7 @@ void bluetooth::init() {
 	while (bt_stack_status != ESP_BLUEDROID_STATUS_ENABLED) {
 		if (esp_bluedroid_enable() != ESP_OK) {
 			ESP_LOGE(BT_TAG, "Failed to enable bluedroid");
-			vTaskDelay(100 / portTICK_PERIOD_MS);
+			vTaskDelay(pdMS_TO_TICKS(100));
 		} else {
 			ESP_LOGI(BT_TAG, "Bluedroid enabled");
 		}
@@ -149,6 +150,11 @@ void bluetooth::init() {
 void bluetooth::set_scan_mode(bool connectable) {
 	if (esp_bt_gap_set_scan_mode(connectable ? ESP_BT_CONNECTABLE : ESP_BT_NON_CONNECTABLE, connectable ? ESP_BT_GENERAL_DISCOVERABLE : ESP_BT_NON_DISCOVERABLE)) {
 		ESP_LOGE(BT_TAG,"esp_bt_gap_set_scan_mode failed");
+		return;
+	}
+
+	if (connectable) {
+		leds::set_bluetooth(leds::Bluetooth::DISCOVERABLE);
 	}
 }
 

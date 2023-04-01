@@ -9,6 +9,7 @@
 #include "storage.h"
 #include "i2s.h"
 #include "bluetooth.h"
+#include "leds.h"
 
 #define A2DP_TAG "APP_A2DP"
 
@@ -21,6 +22,7 @@ static void handle_connection_state(uint16_t event, esp_a2d_cb_param_t* a2d) {
 	static bool was_connected = false;
 	if (a2d->conn_stat.state == ESP_A2D_CONNECTION_STATE_DISCONNECTED) {
 		ESP_LOGI(A2DP_TAG, "ESP_A2D_CONNECTION_STATE_DISCONNECTED");
+		leds::set_bluetooth(leds::Bluetooth::DISCONNECTED);
 
 		if (a2d->conn_stat.disc_rsn == ESP_A2D_DISC_RSN_ABNORMAL && retry_count < 3) {
 				ESP_LOGI(A2DP_TAG,"Connection try number: %d", retry_count);
@@ -30,12 +32,12 @@ static void handle_connection_state(uint16_t event, esp_a2d_cb_param_t* a2d) {
 			bluetooth::set_scan_mode(true);
 
 			if (was_connected) {
-				vTaskDelay(300 / portTICK_PERIOD_MS);
 				WAV_PLAY(disconnect);
 			}
 		}
 	} else if (a2d->conn_stat.state == ESP_A2D_CONNECTION_STATE_CONNECTED){
 		ESP_LOGI(A2DP_TAG, "ESP_A2D_CONNECTION_STATE_CONNECTED");
+		leds::set_bluetooth(leds::Bluetooth::CONNECTED);
 
 		bluetooth::set_scan_mode(false);
 		retry_count = 0;
