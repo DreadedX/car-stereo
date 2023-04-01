@@ -1,0 +1,7 @@
+menu "Car Stereo Configuration"
+	config CAR_STEREO_PROTOTYPE
+		bool "Prototype"
+		default false
+		help
+			Compile the code for the car stereo prototype instead of the final design
+endmenu

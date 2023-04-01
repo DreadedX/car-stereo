@@ -284,6 +284,12 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# Car Stereo Configuration
+#
+# CONFIG_CAR_STEREO_PROTOTYPE is not set
+# end of Car Stereo Configuration
+
+#
 # Compiler options
 #
 # CONFIG_COMPILER_OPTIMIZATION_DEFAULT is not set
