@@ -20,7 +20,7 @@ void nvs::init() {
 
 void nvs::get_last_connection(esp_bd_addr_t last_connection) {
 	nvs_handle handle;
-	esp_err_t err = nvs_open("connected_dba", NVS_READWRITE, &handle);
+	esp_err_t err = nvs_open("stereo", NVS_READONLY, &handle);
 	if (err != ESP_OK) {
 		ESP_LOGE(NVS_TAG, "NVS OPEN ERRRO");
 	}
@@ -52,7 +52,7 @@ void nvs::set_last_connection(esp_bd_addr_t bda) {
 	}
 
 	nvs_handle handle;
-	esp_err_t err = nvs_open("connected_dba", NVS_READWRITE, &handle);
+	esp_err_t err = nvs_open("stereo", NVS_READWRITE, &handle);
 	if (err != ESP_OK) {
 		ESP_LOGE(NVS_TAG, "NVS OPEN ERRRO");
 	}
