@@ -81,14 +81,11 @@ static void rc_tg_callback(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t*
 			if (param->reg_ntf.event_id == ESP_AVRC_RN_VOLUME_CHANGE) {
 				ESP_LOGI(AVRCP_TAG, "AVRC Volume Changes Supported");
 
-				// Notify the phone of the current volume
-				// @TODO This does not appear to set the volume correctly on my OnePlus 7T Pro
-				// However for now it is not really relevant as the volume control is doen by the car
-				// In the future however it might be nice to sync the value on the phone, the esp and the car
-				// This will require some sort of CAN bus access
+				// Device supports volume notifcations
 				volume_notify = true;
 				esp_avrc_rn_param_t rn_param;
 				rn_param.volume = volume_controller::current();
+				// Notify the phone of the current volume
 				esp_avrc_tg_send_rn_rsp(ESP_AVRC_RN_VOLUME_CHANGE, ESP_AVRC_RN_RSP_INTERIM, &rn_param);
 			} else if (param->reg_ntf.event_id == ESP_AVRC_RN_PLAY_POS_CHANGED) {
 				ESP_LOGI(AVRCP_TAG, "We can change the play position?");

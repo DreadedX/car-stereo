@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <sys/lock.h>
 
 namespace volume_controller {
 	void init();
